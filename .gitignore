@@ -1,0 +1,26 @@
+# Django
+*.log
+*.pot
+*.pyc
+__pycache__/
+local_settings.py
+db.sqlite3
+media/
+static_root/
+venv/
+.env
+
+# Node / Vite
+node_modules/
+dist/
+dist-ssr/
+*.local
+frontend/dist/
+frontend/node_modules/
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
