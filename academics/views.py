@@ -29,8 +29,17 @@ class CourseClassViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # Teachers can only see their own classes
-        if self.request.user.role == 'TEACHER':
+        
+        # Only filter out archived classes on the list view
+        if self.action == 'list':
+            show_archived = self.request.query_params.get('archived', 'false').lower() == 'true'
+            if show_archived:
+                qs = qs.filter(is_archived=True)
+            else:
+                qs = qs.filter(is_archived=False)
+
+        # Teachers can only see their own active classes by default, but can see all active in the Schedule
+        if self.request.user.role == 'TEACHER' and self.request.query_params.get('all') != 'true':
             qs = qs.filter(teacher=self.request.user)
         return qs
 
@@ -81,7 +90,6 @@ class CourseClassViewSet(viewsets.ModelViewSet):
                 'total': len(sorted_dates),
                 'present': sum(1 for d in sorted_dates if rec_map.get(d) == 'PRESENT'),
                 'absent':  sum(1 for d in sorted_dates if rec_map.get(d) == 'ABSENT'),
-                'late':    sum(1 for d in sorted_dates if rec_map.get(d) == 'LATE'),
                 'excused': sum(1 for d in sorted_dates if rec_map.get(d) == 'EXCUSED'),
                 'daily':   {d: rec_map.get(d, '') for d in sorted_dates},
             }
@@ -96,7 +104,6 @@ class CourseClassViewSet(viewsets.ModelViewSet):
                 'date': d,
                 'present': day_recs.count('PRESENT'),
                 'absent':  day_recs.count('ABSENT'),
-                'late':    day_recs.count('LATE'),
                 'excused': day_recs.count('EXCUSED'),
             })
 

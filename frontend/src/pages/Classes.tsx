@@ -9,7 +9,7 @@ interface CourseClass {
   id: number; name: string; subject: number; subject_name: string;
   teacher: number | null; teacher_name: string; room: number | null; room_name: string;
   days: string; start_time: string; end_time: string;
-  capacity: number; student_count: number; monthly_fee: string;
+  capacity: number; student_count: number; monthly_fee: string; is_archived: boolean;
 }
 interface EnrolledStudent { id: number; full_name: string; balance: number; is_active: boolean; }
 interface User { id: number; username: string; first_name: string; last_name: string; role: string; display_name: string; salary_share: number; }
@@ -26,6 +26,8 @@ const fmt = (n: number) => Number(n).toLocaleString();
 const Classes: React.FC = () => {
   const perms = usePermissions();
   const navigate = useNavigate();
+
+  const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
 
   const [classes, setClasses] = useState<CourseClass[]>([]);
   const [teachers, setTeachers] = useState<User[]>([]);
@@ -52,18 +54,20 @@ const Classes: React.FC = () => {
 
   const fetchAll = useCallback(async () => {
     try {
-      const reqs: Promise<any>[] = [api.get('classes/'), api.get('rooms/'), api.get('subjects/')];
-      if (perms.canManageStaff) reqs.push(api.get('users/?role=TEACHER'));
+      setLoading(true);
+      const qs = activeTab === 'archived' ? 'classes/?archived=true' : 'classes/';
+      const reqs: Promise<any>[] = [api.get(qs), api.get('rooms/'), api.get('subjects/')];
+      if (perms.canManageStaff) reqs.push(api.get('users/'));
       if (perms.canEditStudents) reqs.push(api.get('students/?is_active=true'));
       const [cls, rm, sub, usr, stu] = await Promise.all(reqs);
       setClasses(cls.data);
       setRooms(rm.data);
       setSubjects(sub.data);
-      if (perms.canManageStaff && usr) setTeachers(usr.data);
+      if (perms.canManageStaff && usr) setTeachers(usr.data.filter((u: any) => u.role !== 'DEV'));
       if (perms.canEditStudents && stu) setAllStudents(stu.data);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [perms.canManageStaff, perms.canEditStudents]);
+  }, [perms.canManageStaff, perms.canEditStudents, activeTab]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -83,6 +87,15 @@ const Classes: React.FC = () => {
       else await api.post('classes/', payload);
       setShowClassModal(false); fetchAll();
     } catch (e) { console.error(e); }
+  };
+
+  const handleToggleArchive = async (cls: CourseClass) => {
+    const action = cls.is_archived ? "faollashtirmoqchimisiz" : "arxivlamoqchimisiz";
+    if (!window.confirm(`Rostdan ham ushbu guruhni ${action}?`)) return;
+    try {
+      await api.patch(`classes/${cls.id}/`, { is_archived: !cls.is_archived });
+      fetchAll();
+    } catch (e) { console.error(e); alert("Xatolik yuz berdi."); }
   };
 
   const handleDelete = async (id: number) => {
@@ -151,16 +164,23 @@ const Classes: React.FC = () => {
 
   return (
     <div className="space-y-5">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Guruhlar</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Jami {classes.length} ta guruh</p>
         </div>
-        {perms.canEditClasses && (
-          <button onClick={openAdd} className="inline-flex items-center px-4 py-2 text-sm font-bold rounded-xl text-white bg-purple-600 hover:bg-purple-700 shadow-sm transition-colors">
-            <Plus className="h-4 w-4 mr-2" />Yangi guruh
-          </button>
-        )}
+        
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex p-1 bg-gray-100 dark:bg-slate-800 rounded-xl">
+            <button onClick={() => setActiveTab('active')} className={`flex-1 md:flex-none px-4 py-1.5 text-sm font-bold rounded-lg transition-colors ${activeTab === 'active' ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>Faol</button>
+            <button onClick={() => setActiveTab('archived')} className={`flex-1 md:flex-none px-4 py-1.5 text-sm font-bold rounded-lg transition-colors ${activeTab === 'archived' ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>Arxivlangan</button>
+          </div>
+          {perms.canEditClasses && (
+            <button onClick={openAdd} className="inline-flex items-center justify-center px-4 py-2 text-sm font-bold rounded-xl text-white bg-purple-600 hover:bg-purple-700 shadow-sm transition-colors flex-1 md:flex-none">
+              <Plus className="h-4 w-4 mr-2" />Yangi guruh
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -185,6 +205,7 @@ const Classes: React.FC = () => {
                   <>
                     <button onClick={() => openEnroll(cls)} title="O'quvchilarni boshqarish" className="p-1.5 rounded-xl text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors"><Users className="h-4 w-4" /></button>
                     <button onClick={() => openEdit(cls)} title="Tahrirlash" className="p-1.5 rounded-xl text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"><Edit2 className="h-4 w-4" /></button>
+                    <button onClick={() => handleToggleArchive(cls)} title={cls.is_archived ? "Faollashtirish" : "Arxivlash"} className="p-1.5 rounded-xl text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"><BookOpen className="h-4 w-4" /></button>
                     <button onClick={() => handleDelete(cls.id)} title="O'chirish" className="p-1.5 rounded-xl text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"><Trash2 className="h-4 w-4" /></button>
                   </>
                 )}

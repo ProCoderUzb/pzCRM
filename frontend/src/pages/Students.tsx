@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../api';
 import { Plus, Users, Phone, Search, Edit2, X } from 'lucide-react';
 
@@ -81,7 +82,7 @@ const Students: React.FC = () => {
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
                         <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-700 dark:text-blue-400 font-bold text-xs shrink-0">{s.full_name[0]?.toUpperCase()}</div>
-                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">{s.full_name}</span>
+                        <Link to={`/students/${s.id}`} className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline">{s.full_name}</Link>
                       </div>
                     </td>
                     <td className="px-5 py-3"><span className={`px-2.5 py-1 text-xs font-bold rounded-full ${s.is_active ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/50' : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/50'}`}>{s.is_active ? 'Faol' : 'Nofaol'}</span></td>

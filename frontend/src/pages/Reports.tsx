@@ -11,12 +11,12 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface CourseClass { id: number; name: string; }
-interface StudentStat { student: string; total: number; present: number; absent: number; late: number; excused: number; rate: number; }
+interface StudentStat { student: string; total: number; present: number; absent: number; excused: number; rate: number; }
 interface ByStatus { status: string; count: number; }
 interface AuditEntry { id: number; timestamp: string; user: string; action: string; model: string; object_repr: string; changes: Record<string, { old: string; new: string }>; }
 
 const COLORS: Record<string, string> = {
-  PRESENT: '#10b981', ABSENT: '#ef4444', LATE: '#f59e0b', EXCUSED: '#6366f1', HALF: '#f97316', LEAVE: '#06b6d4',
+  PRESENT: '#10b981', ABSENT: '#ef4444', EXCUSED: '#6366f1', HALF: '#f97316', LEAVE: '#06b6d4',
 };
 const ACTION_COLORS: Record<string, string> = {
   CREATE: 'bg-green-100 text-green-800', UPDATE: 'bg-blue-100 text-blue-800', DELETE: 'bg-red-100 text-red-800',
@@ -215,7 +215,6 @@ const Reports: React.FC = () => {
                       <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Jami</th>
                       <th className="px-6 py-4 text-center text-xs font-bold text-green-600 dark:text-green-500 uppercase tracking-wider">Bor</th>
                       <th className="px-6 py-4 text-center text-xs font-bold text-red-600 dark:text-red-500 uppercase tracking-wider">Yo'q</th>
-                      <th className="px-6 py-4 text-center text-xs font-bold text-yellow-600 dark:text-yellow-500 uppercase tracking-wider">Kechikgan</th>
                       <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Davomat</th>
                     </tr></thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-slate-800/60">
@@ -225,7 +224,6 @@ const Reports: React.FC = () => {
                           <td className="px-6 py-3.5 text-sm font-bold text-center text-gray-500 dark:text-gray-400">{s.total}</td>
                           <td className="px-6 py-3.5 text-sm text-center font-black text-green-700 dark:text-green-500">{s.present}</td>
                           <td className="px-6 py-3.5 text-sm text-center font-black text-red-700 dark:text-red-500">{s.absent}</td>
-                          <td className="px-6 py-3.5 text-sm text-center font-black text-yellow-700 dark:text-yellow-500">{s.late}</td>
                           <td className="px-6 py-3.5 text-center">
                             <span className={`px-2.5 py-1 rounded-md bg-white border dark:bg-transparent shadow-sm text-xs font-black tracking-wider ${s.rate >= 80 ? 'text-green-700 border-green-200 dark:border-green-800/40 dark:text-green-400' : s.rate >= 60 ? 'text-yellow-700 border-yellow-200 dark:border-yellow-800/40 dark:text-yellow-400' : 'text-red-700 border-red-200 dark:border-red-800/40 dark:text-red-400'}`}>{s.rate}%</span>
                           </td>

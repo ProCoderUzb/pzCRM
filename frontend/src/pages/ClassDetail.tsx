@@ -11,7 +11,7 @@ import {
 interface ClassMeta {
   id: number; name: string; subject_name: string; teacher_name: string;
   room_name: string; days: string; start_time: string; end_time: string;
-  capacity: number; student_count: number; monthly_fee: string;
+  capacity: number; student_count: number; monthly_fee: string; is_archived: boolean;
 }
 interface EnrolledStudent { id: number; full_name: string; balance: number; is_active: boolean; }
 interface AttSummaryRow {
@@ -178,11 +178,18 @@ const ClassDetail: React.FC = () => {
           className="p-2 rounded-xl border border-gray-200 dark:border-slate-800 hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 dark:text-gray-400 transition-colors">
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white truncate">{meta.name}</h1>
-          <p className="text-sm text-purple-600 dark:text-purple-400 font-bold">{meta.subject_name}</p>
+        <div className="flex-1 min-w-0 flex items-center gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white truncate">{meta.name}</h1>
+            <p className="text-sm text-purple-600 dark:text-purple-400 font-bold">{meta.subject_name}</p>
+          </div>
+          {meta.is_archived && (
+            <span className="px-2.5 py-1 uppercase tracking-widest text-[10px] font-black rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-500 border border-amber-200 dark:border-amber-800/50">
+              Arxivlangan
+            </span>
+          )}
         </div>
-        {perms.canChargeStudents && parseFloat(meta.monthly_fee) > 0 && (
+        {!meta.is_archived && perms.canChargeStudents && parseFloat(meta.monthly_fee) > 0 && (
           <button onClick={() => { setShowCharge(true); setChargeResult(null); setDiscounts({}); }}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold shadow-sm transition-colors">
             <Zap className="h-4 w-4" /> To'lov

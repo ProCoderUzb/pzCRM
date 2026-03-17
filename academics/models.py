@@ -30,7 +30,7 @@ class CourseClass(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='classes')
     teacher = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True,
-        limit_choices_to={'role': 'TEACHER'}, related_name='classes'
+        related_name='classes'
     )
     room = models.ForeignKey(Room, on_delete=models.SET_NULL, null=True, blank=True, related_name='classes')
     students = models.ManyToManyField(Student, related_name='classes', blank=True)
@@ -39,6 +39,7 @@ class CourseClass(models.Model):
     end_time = models.TimeField(null=True, blank=True)
     capacity = models.PositiveIntegerField(default=15)
     monthly_fee = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    is_archived = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.name} — {self.subject.name}"
@@ -80,7 +81,6 @@ class Attendance(models.Model):
     STATUS_CHOICES = (
         ('PRESENT', 'Present'),
         ('ABSENT', 'Absent'),
-        ('LATE', 'Late'),
         ('EXCUSED', 'Excused'),
     )
     course_class = models.ForeignKey(CourseClass, on_delete=models.CASCADE, related_name='attendance_records')

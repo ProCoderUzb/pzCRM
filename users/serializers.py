@@ -4,15 +4,22 @@ from .models import User
 
 class UserSerializer(serializers.ModelSerializer):
     display_name = serializers.SerializerMethodField()
+    password = serializers.CharField(write_only=True, required=False, min_length=6)
 
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'first_name', 'last_name',
-                  'role', 'status', 'phone_number', 'balance', 'salary_share', 'display_name')
+                  'role', 'status', 'phone_number', 'balance', 'salary_share', 'display_name', 'password')
         read_only_fields = ('id', 'balance', 'display_name')
 
     def get_display_name(self, obj):
         return obj.get_full_name() or obj.username
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        if password:
+            instance.set_password(password)
+        return super().update(instance, validated_data)
 
     def validate_role(self, value):
         # Prevent assigning DEV role via the API

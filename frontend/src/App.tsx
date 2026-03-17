@@ -16,6 +16,7 @@ import Subjects from './pages/Subjects';
 import Attendance from './pages/Attendance';
 import Schedule from './pages/Schedule';
 import Reports from './pages/Reports';
+import StudentDetail from './pages/StudentDetail';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode, allowedRoles?: string[] }> = ({ children, allowedRoles }) => {
   const { isAuthenticated, currentUser } = useAuth();
@@ -37,6 +38,7 @@ const App: React.FC = () => (
           <Route path="/dashboard"        element={<ProtectedRoute allowedRoles={['CEO', 'ADMIN', 'DEV']}><Dashboard /></ProtectedRoute>} />
           <Route path="/leads"            element={<ProtectedRoute allowedRoles={['CEO', 'ADMIN', 'DEV']}><Leads /></ProtectedRoute>} />
           <Route path="/students"         element={<ProtectedRoute allowedRoles={['CEO', 'ADMIN', 'DEV']}><Students /></ProtectedRoute>} />
+          <Route path="/students/:id"     element={<ProtectedRoute allowedRoles={['CEO', 'ADMIN', 'DEV']}><StudentDetail /></ProtectedRoute>} />
           <Route path="/teachers"         element={<ProtectedRoute allowedRoles={['CEO', 'ADMIN', 'DEV']}><Teachers /></ProtectedRoute>} />
           <Route path="/subjects"         element={<ProtectedRoute allowedRoles={['CEO', 'ADMIN', 'DEV']}><Subjects /></ProtectedRoute>} />
           <Route path="/rooms"            element={<ProtectedRoute allowedRoles={['CEO', 'ADMIN', 'DEV']}><Rooms /></ProtectedRoute>} />

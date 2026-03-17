@@ -34,6 +34,12 @@ class UserViewSet(viewsets.ModelViewSet):
         return super().destroy(request, *args, **kwargs)
 
     def perform_update(self, serializer):
+        from rest_framework.exceptions import PermissionDenied
+        
+        # Check if password is being updated
+        if 'password' in self.request.data and self.request.user.role not in ['CEO', 'DEV'] and self.request.user.id != serializer.instance.id:
+            raise PermissionDenied("Only CEO can change other staff members' passwords.")
+
         # Admin cannot change role or status
         if self.request.user.role == 'ADMIN':
             # Role/status are protected fields for Admin

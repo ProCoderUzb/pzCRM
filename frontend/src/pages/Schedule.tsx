@@ -26,7 +26,7 @@ const Schedule: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('classes/').then(r => setClasses(r.data)).catch(console.error).finally(() => setLoading(false));
+    api.get('classes/?all=true').then(r => setClasses(r.data)).catch(console.error).finally(() => setLoading(false));
   }, []);
 
   // Build a color map so each class consistently gets the same color
