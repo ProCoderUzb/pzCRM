@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://pz.educationpro.uz/api/';
+
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api/',
+  baseURL: BASE_URL,
 });
 
 // Attach access token to every request
@@ -60,7 +62,7 @@ api.interceptors.response.use(
 
       try {
         // Use a plain axios call (not our intercepted instance) to avoid loop
-        const res = await axios.post('http://127.0.0.1:8000/api/token/refresh/', {
+        const res = await axios.post(`${BASE_URL}token/refresh/`, {
           refresh: refreshToken,
         });
 
