@@ -10,22 +10,19 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
-
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-#&q(j*%+zrpjoibscw8j1zf%0@0$k#c)-#9r$kvcuf&-ctt&ux'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-#&q(j*%+zrpjoibscw8j1zf%0@0$k#c)-#9r$kvcuf&-ctt&ux')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '*').split(',')
 
 
 # Application definition
@@ -127,7 +124,11 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 AUTH_USER_MODEL = 'users.User'
-CORS_ALLOW_ALL_ORIGINS = True # For MVP
+
+CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'True') == 'True'
+cors_allowed = os.environ.get('CORS_ALLOWED_ORIGINS')
+if cors_allowed:
+    CORS_ALLOWED_ORIGINS = cors_allowed.split(',')
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (

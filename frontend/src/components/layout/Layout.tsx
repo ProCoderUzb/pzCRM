@@ -6,7 +6,7 @@ import {
   BarChart3, Users, UserPlus, BookOpen, LogOut,
   DoorOpen, DollarSign, GraduationCap, BookOpenCheck,
   ClipboardCheck, CalendarDays, FileBarChart, Sun, Moon,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Target
 } from 'lucide-react';
 
 const ROLE_COLORS: Record<string, string> = {
@@ -55,8 +55,8 @@ const Layout: React.FC = () => {
         {/* Logo */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 shrink-0 h-16">
           <div className="flex items-center overflow-hidden">
-            <BookOpen className="h-6 w-6 text-green-400 shrink-0" />
-            {!isCollapsed && <span className="ml-3 text-lg font-bold text-white tracking-tight truncate">EduCRM</span>}
+            <Target className="h-6 w-6 text-indigo-500 shrink-0" />
+            {!isCollapsed && <span className="ml-3 text-xl font-black text-white tracking-widest truncate">PROZONE</span>}
           </div>
         </div>
 

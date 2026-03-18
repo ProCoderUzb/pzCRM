@@ -8,9 +8,9 @@ interface Stu { id: number; full_name: string; }
 interface Staff { id: number; username: string; first_name: string; last_name: string; role: string; display_name: string; }
 
 const STATUS_CELL: Record<string, string> = {
-  PRESENT: 'bg-green-500 text-white',
-  ABSENT:  'bg-red-500   text-white',
-  '':      'bg-gray-100 dark:bg-slate-800 text-gray-300 dark:text-slate-600',
+  PRESENT: 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-400',
+  ABSENT:  'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-400',
+  '':      'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-gray-300',
 };
 const STATUS_LABEL: Record<string, string> = { PRESENT: '✓', ABSENT: '✗', '': '–' };
 
@@ -150,56 +150,68 @@ const Attendance: React.FC = () => {
           ) : enrolled.length === 0 ? (
             <div className="py-12 text-center text-gray-400 dark:text-gray-500 font-medium transition-colors">Ushbu guruhda o'quvchilar yo'q.</div>
           ) : (
-            <div className="divide-y divide-gray-100 dark:divide-slate-800/60 bg-white dark:bg-slate-900">
-              {enrolled.map((s) => {
-                const summary = attSummary.find(r => r.student_id === s.id);
-                return (
-                  <div key={s.id} className="px-5 py-4 transition-colors hover:bg-gray-50 dark:hover:bg-slate-800/50">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-700 dark:text-blue-400 font-black text-sm shrink-0 shadow-sm">
-                          {s.full_name[0]?.toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-base font-bold text-gray-900 dark:text-white truncate">{s.full_name}</p>
-                          {summary && (
-                            <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mt-0.5 tracking-wide">
-                              <span className="text-green-600 dark:text-green-500">{summary.present} Bor</span> / <span className="text-red-600 dark:text-red-500">{summary.absent} Yo'q</span>
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* History + Today fused */}
-                    <div className="mt-4 flex flex-wrap items-end gap-3 sm:pl-14">
-                      {summary && attDates.length > 0 && attDates.map(d => {
-                        const parts = d.split('-');
-                        const displayDate = parts.length === 3 ? `${parts[1]}/${parts[2]}` : d;
-                        return (
-                          <div key={d} className="flex flex-col items-center gap-1.5 mb-1">
-                            <span className="text-[10px] text-gray-400 dark:text-gray-500 font-bold leading-none tracking-tighter">
-                              {displayDate}
-                            </span>
-                            <span
-                              title={`${d}: ${summary.daily[d] || 'no record'}`}
-                              className={`inline-flex items-center justify-center w-6 h-6 rounded-md text-xs font-black shadow-sm ${STATUS_CELL[summary.daily[d] || '']} ring-1 ring-inset ${summary.daily[d] === 'PRESENT' ? 'ring-green-600 dark:ring-green-400' : summary.daily[d] === 'ABSENT' ? 'ring-red-600 dark:ring-red-400' : 'ring-gray-200 dark:ring-slate-700'}`}>
-                              {STATUS_LABEL[summary.daily[d] || '']}
-                            </span>
+            <div className="overflow-x-auto pb-4">
+              <table className="w-full text-left border-collapse min-w-max">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-slate-800">
+                    <th className="px-5 py-4 font-bold text-gray-900 dark:text-white sticky left-0 bg-white dark:bg-slate-900 z-10">O'quvchi</th>
+                    {attDates.map(d => {
+                      const parts = d.split('-');
+                      const day = parts.length === 3 ? parts[2] : '';
+                      const monthNames = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                      const month = parts.length === 3 ? monthNames[parseInt(parts[1], 10)] : d;
+                      return (
+                        <th key={d} className="px-2 py-4 text-center min-w-[3.5rem]">
+                          <div className="flex flex-col items-center">
+                            <span className="text-sm font-bold text-gray-900 dark:text-white">{day}</span>
+                            <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase">{month}</span>
                           </div>
-                        );
-                      })}
-                      
-                      {/* Today's selector */}
-                      <div className="flex flex-col items-center gap-1.5 mb-1 ml-2 pl-3 border-l-2 border-dashed border-gray-200 dark:border-slate-700">
-                         <span className="text-[10px] text-blue-500 dark:text-blue-400 font-black uppercase tracking-wider leading-none">Bugun</span>
-                         <StatusPill value={stuRecs[s.id]?.status || 'PRESENT'}
-                           onChange={v => setStuRecs(p => ({ ...p, [s.id]: { ...p[s.id], status: v } }))} />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                        </th>
+                      );
+                    })}
+                    <th className="px-5 py-4 text-center">
+                       <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md">Bugun</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-slate-800/60">
+                  {enrolled.map(s => {
+                    const summary = attSummary.find(r => r.student_id === s.id);
+                    return (
+                      <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors group">
+                        <td className="px-5 py-3 whitespace-nowrap sticky left-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50 dark:group-hover:bg-slate-800/50 z-10 border-r border-gray-100 dark:border-slate-800 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-700 dark:text-blue-400 font-bold text-xs shrink-0 shadow-sm">
+                              {s.full_name[0]?.toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-gray-900 dark:text-white">{s.full_name}</p>
+                              {summary && (
+                                <p className="text-[10px] font-bold tracking-wide mt-0.5">
+                                  <span className="text-green-600 dark:text-green-500">{summary.present} Bor</span> <span className="text-gray-300 dark:text-slate-600">/</span> <span className="text-red-600 dark:text-red-500">{summary.absent} Yo'q</span>
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        {attDates.map(d => (
+                          <td key={d} className="px-2 py-3 text-center">
+                            <span title={`${d}: ${summary?.daily[d] || 'no record'}`}
+                              className={`inline-flex items-center justify-center w-9 h-9 rounded-xl text-[15px] font-black transition-colors ${STATUS_CELL[summary?.daily[d] || '']}`}>
+                              {STATUS_LABEL[summary?.daily[d] || '']}
+                            </span>
+                          </td>
+                        ))}
+                        <td className="px-5 py-3 text-center">
+                          <div className="flex justify-center flex-nowrap min-w-max">
+                            <StatusPill value={stuRecs[s.id]?.status || 'PRESENT'} onChange={v => setStuRecs(p => ({ ...p, [s.id]: { ...p[s.id], status: v } }))} />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
