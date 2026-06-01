@@ -12,11 +12,13 @@ import ClassDetail from './pages/ClassDetail';
 import Rooms from './pages/Rooms';
 import Finance from './pages/Finance';
 import Teachers from './pages/Teachers';
+import TeacherDetail from './pages/TeacherDetail';
 import Subjects from './pages/Subjects';
 import Attendance from './pages/Attendance';
 import Schedule from './pages/Schedule';
 import Reports from './pages/Reports';
 import StudentDetail from './pages/StudentDetail';
+import Guidelines from './pages/Guidelines';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode, allowedRoles?: string[] }> = ({ children, allowedRoles }) => {
   const { isAuthenticated, currentUser } = useAuth();
@@ -40,6 +42,7 @@ const App: React.FC = () => (
           <Route path="/students"         element={<ProtectedRoute allowedRoles={['CEO', 'ADMIN', 'DEV']}><Students /></ProtectedRoute>} />
           <Route path="/students/:id"     element={<ProtectedRoute allowedRoles={['CEO', 'ADMIN', 'DEV']}><StudentDetail /></ProtectedRoute>} />
           <Route path="/teachers"         element={<ProtectedRoute allowedRoles={['CEO', 'ADMIN', 'DEV']}><Teachers /></ProtectedRoute>} />
+          <Route path="/teachers/:id"     element={<ProtectedRoute allowedRoles={['CEO', 'ADMIN', 'DEV']}><TeacherDetail /></ProtectedRoute>} />
           <Route path="/subjects"         element={<ProtectedRoute allowedRoles={['CEO', 'ADMIN', 'DEV']}><Subjects /></ProtectedRoute>} />
           <Route path="/rooms"            element={<ProtectedRoute allowedRoles={['CEO', 'ADMIN', 'DEV']}><Rooms /></ProtectedRoute>} />
           <Route path="/finance"          element={<ProtectedRoute allowedRoles={['CEO', 'ADMIN', 'DEV']}><Finance /></ProtectedRoute>} />
@@ -50,6 +53,7 @@ const App: React.FC = () => (
           <Route path="/classes/:id"      element={<ClassDetail />} />
           <Route path="/attendance"       element={<Attendance />} />
           <Route path="/schedule"         element={<Schedule />} />
+          <Route path="/guidelines"       element={<Guidelines />} />
         </Route>
       </Routes>
     </Router>

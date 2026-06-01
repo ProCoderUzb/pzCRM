@@ -73,7 +73,7 @@ const Reports: React.FC = () => {
   // ── Import ─────────────────────────────────────────────────────────────────
   const [importModel, setImportModel] = useState<'students' | 'leads'>('students');
   const [importFile, setImportFile] = useState<File | null>(null);
-  const [importResult, setImportResult] = useState<{ created?: number; skipped?: number; errors?: string[]; error?: string } | null>(null);
+  const [importResult, setImportResult] = useState<{ created?: number; updated?: number; skipped?: number; errors?: string[]; error?: string } | null>(null);
   const [importing, setImporting] = useState(false);
 
   const handleImport = async () => {
@@ -296,7 +296,13 @@ const Reports: React.FC = () => {
                   <p className="font-bold">❌ {importResult.error}</p>
                 ) : (
                   <>
-                    <p className="mb-2">✅ <strong>{importResult.created}</strong> ta yozuv yaratildi. <strong>{importResult.skipped}</strong> tasi o'tkazib yuborildi.</p>
+                    <p className="mb-2">
+                      ✅ <strong>{importResult.created}</strong> ta yangi yozuv yaratildi. 
+                      {importResult.updated !== undefined && (
+                        <> <strong>{importResult.updated}</strong> tasi yangilandi.</>
+                      )}
+                      {" "}<strong>{importResult.skipped}</strong> tasi o'tkazib yuborildi.
+                    </p>
                     {importResult.errors && importResult.errors.length > 0 && (
                       <details className="mt-3"><summary className="cursor-pointer font-bold text-xs uppercase tracking-wider bg-red-100/50 dark:bg-red-900/40 inline-block px-3 py-1.5 rounded-lg">{importResult.errors.length} ta qatorda xatolik</summary>
                         <ul className="mt-2 space-y-1.5 p-3 bg-white/50 dark:bg-slate-900/50 rounded-lg">{importResult.errors.map((e, i) => <li key={i} className="text-xs font-mono text-red-600 dark:text-red-400">• {e}</li>)}</ul>

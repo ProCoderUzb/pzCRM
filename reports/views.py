@@ -54,7 +54,7 @@ def xlsx_response(wb: openpyxl.Workbook, filename: str) -> HttpResponse:
 class AuditLogView(views.APIView):
     permission_classes = [IsCEOOrDev]
     def get(self, request):
-        qs = AuditLog.objects.select_related('user').all()
+        qs = AuditLog.objects.select_related('user').filter(model_name__in=['Payment', 'Expense', 'Student'])
 
         model = request.query_params.get('model')
         action = request.query_params.get('action')
@@ -148,15 +148,13 @@ class ExportAttendanceView(views.APIView):
         return xlsx_response(wb, f'attendance_{datetime.now():%Y%m%d}.xlsx')
 
 
-        return xlsx_response(wb, f'attendance_{datetime.now():%Y%m%d}.xlsx')
-
-
 # ─── EXCEL IMPORTS ────────────────────────────────────────────────────────────
 class ImportStudentsView(views.APIView):
     permission_classes = [IsAdminOrCEOOrDev]
     parser_classes = [MultiPartParser]
 
     def post(self, request):
+        from decimal import Decimal
         file = request.FILES.get('file')
         if not file:
             return Response({'error': 'No file uploaded.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -164,30 +162,76 @@ class ImportStudentsView(views.APIView):
             wb = openpyxl.load_workbook(file)
             ws = wb.active
             created = 0
+            updated = 0
             skipped = 0
             errors = []
             for row in ws.iter_rows(min_row=2, values_only=True):
+                # Ensure row has at least 8 elements
+                row = list(row) + [None] * (8 - len(row))
                 if not row[0] and not row[1]:
                     continue
                 full_name = str(row[1] or '').strip()
                 if not full_name:
                     skipped += 1
                     continue
+
+                student_id = None
+                if row[0]:
+                    try:
+                        student_id = int(float(str(row[0]).strip()))
+                    except (ValueError, TypeError):
+                        pass
+
+                student = None
+                if student_id:
+                    student = Student.objects.filter(id=student_id).first()
+
+                if not student:
+                    student = Student.objects.filter(full_name__iexact=full_name).first()
+
+                is_active = True
+                active_str = str(row[5] or '').strip().lower()
+                if active_str in ['no', 'false', '0', 'arxiv', 'arxivda']:
+                    is_active = False
+
+                balance_val = Decimal('0.00')
+                if row[6] is not None:
+                    try:
+                        balance_val = Decimal(str(row[6]).replace(',', '').strip())
+                    except Exception:
+                        pass
+
                 try:
-                    Student.objects.get_or_create(
-                        full_name=full_name,
-                        defaults={
-                            'phone_number': str(row[2] or ''),
-                            'parent_name': str(row[3] or ''),
-                            'parent_phone': str(row[4] or ''),
-                            'is_active': str(row[5] or 'Yes').lower() == 'yes',
-                            'notes': str(row[7] or ''),
-                        }
-                    )
-                    created += 1
+                    if student:
+                        student.full_name = full_name
+                        student.phone_number = str(row[2] or '').strip()
+                        student.parent_name = str(row[3] or '').strip()
+                        student.parent_phone = str(row[4] or '').strip()
+                        student.is_active = is_active
+                        student.balance = balance_val
+                        student.notes = str(row[7] or '').strip()
+                        student.save()
+                        updated += 1
+                    else:
+                        Student.objects.create(
+                            full_name=full_name,
+                            phone_number=str(row[2] or '').strip(),
+                            parent_name=str(row[3] or '').strip(),
+                            parent_phone=str(row[4] or '').strip(),
+                            is_active=is_active,
+                            balance=balance_val,
+                            notes=str(row[7] or '').strip()
+                        )
+                        created += 1
                 except Exception as e:
                     errors.append(f"Row {full_name}: {str(e)}")
-            return Response({'created': created, 'skipped': skipped, 'errors': errors})
+
+            return Response({
+                'created': created,
+                'updated': updated,
+                'skipped': skipped,
+                'errors': errors
+            })
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

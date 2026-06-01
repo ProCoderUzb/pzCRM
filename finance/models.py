@@ -8,6 +8,7 @@ class Payment(models.Model):
         ('CASH', 'Cash'), ('CARD', 'Card'), ('TRANSFER', 'Bank Transfer'), ('OTHER', 'Other'),
     )
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='payments')
+    course_class = models.ForeignKey('academics.CourseClass', on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     date = models.DateField()
     method = models.CharField(max_length=10, choices=METHOD_CHOICES, default='CASH')

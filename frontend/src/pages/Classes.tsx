@@ -235,12 +235,7 @@ const Classes: React.FC = () => {
                   <span className="text-sm font-black text-gray-700 dark:text-gray-300">{fmt(parseFloat(cls.monthly_fee))} / oy</span>
                 )}
               </div>
-              {perms.canChargeStudents && parseFloat(cls.monthly_fee) > 0 && (
-                <button onClick={() => openCharge(cls)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl text-white bg-orange-500 hover:bg-orange-600 shadow-sm transition-colors">
-                  <Zap className="h-3.5 w-3.5" /> To'lov
-                </button>
-              )}
+
             </div>
           </div>
         ))}

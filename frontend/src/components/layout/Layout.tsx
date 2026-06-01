@@ -6,7 +6,7 @@ import {
   BarChart3, Users, UserPlus, BookOpen, LogOut,
   DoorOpen, DollarSign, GraduationCap, BookOpenCheck,
   ClipboardCheck, CalendarDays, FileBarChart, Sun, Moon,
-  ChevronLeft, ChevronRight, Target
+  ChevronLeft, ChevronRight, Target, HelpCircle
 } from 'lucide-react';
 
 const ROLE_COLORS: Record<string, string> = {
@@ -28,6 +28,7 @@ const ALL_NAV = [
   { name: 'Xonalar',      path: '/rooms',      Icon: DoorOpen,       color: 'text-indigo-400',  perm: 'canEditClasses' },
   { name: 'Moliya',       path: '/finance',    Icon: DollarSign,     color: 'text-emerald-400', perm: 'canViewFinanceDebt' },
   { name: 'Hisobotlar',   path: '/reports',    Icon: FileBarChart,   color: 'text-violet-400',  perm: 'canViewReports' },
+  { name: 'Yo\'riqnoma',   path: '/guidelines', Icon: HelpCircle,     color: 'text-violet-500',  perm: 'always' },
 ];
 
 const Layout: React.FC = () => {
@@ -41,8 +42,8 @@ const Layout: React.FC = () => {
   // Filter nav items by permission
   const navItems = ALL_NAV.filter(item => {
     if (currentUser?.role === 'TEACHER') {
-        // Teachers ONLY see Classes, Attendance, and Schedule
-        return ['Guruhlar', 'Davomat', 'Jadval'].includes(item.name);
+        // Teachers ONLY see Classes, Attendance, Schedule, and Guidelines
+        return ['Guruhlar', 'Davomat', 'Jadval', 'Yo\'riqnoma'].includes(item.name);
     }
     if (item.perm === 'always') return true;
     return (perms as any)[item.perm] === true;

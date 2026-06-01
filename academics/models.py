@@ -47,11 +47,11 @@ class CourseClass(models.Model):
     def charge_monthly_fee(self, charged_by):
         """
         Deduct monthly_fee from each enrolled active student's balance.
-        Credit teacher's balance based on their salary_share percentage.
         Create a MonthlyCharge record for audit.
         """
         from finance.models import MonthlyCharge, MonthlyChargeEntry
         from django.utils import timezone
+        from decimal import Decimal
 
         with transaction.atomic():
             charge = MonthlyCharge.objects.create(
@@ -61,20 +61,21 @@ class CourseClass(models.Model):
                 date=timezone.now().date(),
             )
             active_students = self.students.filter(is_active=True)
+            total_charged = Decimal('0')
             for student in active_students:
                 student.balance -= self.monthly_fee
                 student.save(update_fields=['balance'])
                 MonthlyChargeEntry.objects.create(charge=charge, student=student, amount=self.monthly_fee)
+                total_charged += self.monthly_fee
 
-            # Credit teacher
+            # Calculate estimated teacher payout for audit reference only (don't credit balance)
             if self.teacher and self.teacher.salary_share > 0:
-                teacher_cut = (self.monthly_fee * self.teacher.salary_share / 100) * active_students.count()
-                self.teacher.balance += teacher_cut
-                self.teacher.save(update_fields=['balance'])
-                charge.teacher_payout = teacher_cut
+                teacher_payout = (Decimal(str(self.monthly_fee)) * Decimal(str(self.teacher.salary_share)) / 100) * active_students.count()
+                charge.teacher_payout = teacher_payout
                 charge.save(update_fields=['teacher_payout'])
 
         return charge
+
 
 
 class Attendance(models.Model):

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api';
-import { Plus, Search, Edit2, X, Trash2 } from 'lucide-react';
+import { Plus, Search, Edit2, X, Trash2, ExternalLink } from 'lucide-react';
 import { usePermissions } from '../context/AuthContext';
 
 interface StaffMember { id: number; username: string; first_name: string; last_name: string; phone_number: string; role: string; status: string; balance: number; salary_share: number; display_name: string; }
@@ -21,9 +22,10 @@ const STATUS_COLORS: Record<string, string> = {
   TERMINATED: 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-500',
 };
 const getRoleColor = (r: string) => ROLES.find(x => x.value === r)?.color || 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-400';
-const emptyForm = { username: '', first_name: '', last_name: '', phone_number: '', password: '', salary_share: 0, role: 'TEACHER', status: 'ACTIVE' };
+const emptyForm = { username: '', first_name: '', last_name: '', phone_number: '', password: '', role: 'TEACHER', status: 'ACTIVE' };
 
 const Teachers: React.FC = () => {
+  const navigate = useNavigate();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -45,8 +47,8 @@ const Teachers: React.FC = () => {
 
   useEffect(() => { fetchStaff(); }, [search, filterRole]);
 
-  const openAdd = () => { setEditMember(null); setFormData(emptyForm); setError(''); setShowModal(true); };
-  const openEdit = (m: StaffMember) => { setEditMember(m); setFormData({ username: m.username, first_name: m.first_name, last_name: m.last_name, phone_number: m.phone_number, password: '', salary_share: m.salary_share, role: m.role, status: m.status }); setError(''); setShowModal(true); };
+  const openAdd = () => { setEditMember(null); setFormData({...emptyForm}); setError(''); setShowModal(true); };
+  const openEdit = (m: StaffMember) => { setEditMember(m); setFormData({ username: m.username, first_name: m.first_name, last_name: m.last_name, phone_number: m.phone_number, password: '', role: m.role, status: m.status }); setError(''); setShowModal(true); };
 
   const handleDelete = async (id: number) => {
     if (!window.confirm("Rostdan ham ushbu xodimni o'chirmoqchimisiz?")) return;
@@ -63,6 +65,7 @@ const Teachers: React.FC = () => {
     try {
       const payload: any = { ...formData };
       if (editMember && !payload.password) delete payload.password;
+      delete payload.salary_share; // managed in teacher detail page
       if (editMember) await api.patch(`users/${editMember.id}/`, payload);
       else await api.post('users/', payload);
       setShowModal(false); fetchStaff();
@@ -114,6 +117,7 @@ const Teachers: React.FC = () => {
                 </div>
               </div>
               <div className="flex gap-1 shrink-0">
+                <button onClick={() => navigate(`/teachers/${m.id}`)} className="text-gray-400 hover:text-violet-600 dark:hover:text-violet-400 transition-colors p-1.5 hover:bg-violet-50 dark:hover:bg-violet-900/30 rounded-lg" title="Batafsil"><ExternalLink className="h-4 w-4" /></button>
                 <button onClick={() => openEdit(m)} className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"><Edit2 className="h-4 w-4" /></button>
                 {perms.isCEO && (
                   <button onClick={() => handleDelete(m.id)} className="text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg"><Trash2 className="h-4 w-4" /></button>
@@ -121,12 +125,6 @@ const Teachers: React.FC = () => {
               </div>
             </div>
             {m.phone_number && <p className="text-sm font-bold text-gray-500 dark:text-gray-400 mb-4 px-1">📞 {m.phone_number}</p>}
-            {perms.isCEO && (m.role === 'TEACHER' || m.role === 'SUPPORT') && (
-              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100 dark:border-slate-800/60">
-                <div className="text-center bg-gray-50 dark:bg-slate-800/50 p-2 rounded-xl border border-gray-100 dark:border-slate-800"><p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-0.5">Ulush</p><p className="font-black text-gray-800 dark:text-gray-200">{m.salary_share}%</p></div>
-                <div className="text-center bg-gray-50 dark:bg-slate-800/50 p-2 rounded-xl border border-gray-100 dark:border-slate-800"><p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-0.5">Balans</p><p className={`font-black ${m.balance >= 0 ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}>{f(m.balance)}</p></div>
-              </div>
-            )}
           </div>
         ))}
       </div>
@@ -160,7 +158,9 @@ const Teachers: React.FC = () => {
                 </div>
               </div>
               {(formData.role === 'TEACHER' || formData.role === 'SUPPORT') && (
-                <div><label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">Oylik ulushi (%)</label><input type="number" min="0" max="100" step="0.5" value={formData.salary_share} onChange={e => setFormData({...formData, salary_share: parseFloat(e.target.value)})} className="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-bold focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-all" /></div>
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 rounded-xl text-xs text-blue-700 dark:text-blue-400 font-medium">
+                  💡 Oylik foizi va batafsil ma'lumotni o'qituvchi sahifasidan sozlang.
+                </div>
               )}
               <div className="flex justify-end gap-3 pt-4">
                 <button type="button" onClick={() => setShowModal(false)} className="px-5 py-2.5 border-2 border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">Bekor qilish</button>

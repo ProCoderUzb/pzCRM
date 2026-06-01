@@ -1,11 +1,13 @@
 from rest_framework import viewsets, filters
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from config.permissions import IsAdminOrCEOOrDev
 from .models import User
 from .serializers import UserSerializer, UserCreateSerializer
 
 
 class UserViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAdminOrCEOOrDev]
     # Never expose DEV accounts through the API
     queryset = User.objects.exclude(role='DEV').order_by('role', 'first_name', 'username')
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]

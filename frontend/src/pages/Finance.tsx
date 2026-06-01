@@ -1,19 +1,22 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import api from '../api';
 import { usePermissions } from '../context/AuthContext';
-import { Plus, TrendingUp, TrendingDown, DollarSign, AlertCircle, X, Calendar, Wallet } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, DollarSign, AlertCircle, X, Calendar, Wallet, GraduationCap, ChevronDown, ChevronUp, Zap } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 // Types
-interface Payment { id: number; student_name: string; student: number; amount: string; date: string; method: string; notes: string; }
+interface Payment { id: number; student_name: string; student: number; amount: string; date: string; method: string; notes: string; course_class?: number | null; course_class_name?: string; }
 interface Expense { id: number; title: string; amount: string; date: string; category: string; }
-interface Student { id: number; full_name: string; balance: number; }
+interface Student { id: number; full_name: string; balance: number; class_details?: { id: number; name: string; monthly_fee: number; }[]; }
 interface FinanceSummary {
   metrics: { income: number; expenses: number; profit: number; total_debt: number; };
   comparisons: { has_comparison: boolean; income_change: number | null; expenses_change: number | null; profit_change: number | null; };
   trends: { is_daily: boolean; income: { period: string; total: number }[]; expenses: { period: string; total: number }[]; };
   breakdowns: { expense_by_category: { label: string; total: number }[]; income_by_method: { label: string; total: number }[]; };
 }
+interface TeacherGroup { id: number; name: string; student_count: number; monthly_fee: number; month_payments_received: number; month_fees_charged: number; }
+interface TeacherSalary { id: number; display_name: string; username: string; salary_share: number; groups: TeacherGroup[]; total_income_from_groups: number; calculated_salary: number; already_paid: number; }
+interface SalaryData { month: string; teachers: TeacherSalary[]; }
 
 const PIE_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 const METHODS = ['CASH', 'CARD', 'TRANSFER', 'OTHER'];
@@ -26,17 +29,37 @@ const getDates = (range: string) => {
   const d = new Date();
   const y = d.getFullYear();
   const m = d.getMonth();
-  
-  if (range === 'THIS_MONTH') return { start: new Date(y, m, 1).toISOString().slice(0, 10), end: new Date(y, m + 1, 0).toISOString().slice(0, 10) };
-  if (range === 'LAST_MONTH') return { start: new Date(y, m - 1, 1).toISOString().slice(0, 10), end: new Date(y, m, 0).toISOString().slice(0, 10) };
-  if (range === 'THIS_YEAR') return { start: new Date(y, 0, 1).toISOString().slice(0, 10), end: new Date(y, 11, 31).toISOString().slice(0, 10) };
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const fmt = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+
+  if (range === 'THIS_MONTH') return { start: fmt(new Date(y, m, 1)), end: fmt(new Date(y, m + 1, 0)) };
+  if (range === 'LAST_MONTH') return { start: fmt(new Date(y, m - 1, 1)), end: fmt(new Date(y, m, 0)) };
+  if (range === 'THIS_YEAR') return { start: fmt(new Date(y, 0, 1)), end: fmt(new Date(y, 11, 31)) };
   return { start: '', end: '' }; // ALL
 };
 
 const Finance: React.FC = () => {
   const perms = usePermissions();
-  const [tab, setTab] = useState<'payments' | 'expenses' | 'debtors'>(perms.canViewFinancialStats ? 'payments' : 'debtors');
+  const [tab, setTab] = useState<'payments' | 'expenses' | 'debtors' | 'salaries'>(perms.canViewFinancialStats ? 'payments' : 'debtors');
+
+  // Salary state
+  const [salaryMonth, setSalaryMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; });
+  const [salaryData, setSalaryData] = useState<SalaryData | null>(null);
+  const [salaryLoading, setSalaryLoading] = useState(false);
+  const [showSalaryModal, setShowSalaryModal] = useState(false);
+  const [selectedTeacher, setSelectedTeacher] = useState<TeacherSalary | null>(null);
+  const [payBase, setPayBase] = useState('');
+  const [payBonus, setPayBonus] = useState('');
+  const [payNotes, setPayNotes] = useState('');
+  const [paying, setPaying] = useState(false);
+  const [expandedTeacher, setExpandedTeacher] = useState<number | null>(null);
+  const [toast, setToast] = useState('');
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 4000); };
   const [dateRange, setDateRange] = useState('THIS_MONTH');
+  
+  // Batch charging state
+  const [chargeStatus, setChargeStatus] = useState<{ already_charged: boolean; uncharged_classes_count: number; uncharged_classes_names: string[] } | null>(null);
+  const [chargingAll, setChargingAll] = useState(false);
   
   const [payments, setPayments] = useState<Payment[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -47,7 +70,7 @@ const Finance: React.FC = () => {
 
   // Forms
   const todayStr = new Date().toISOString().slice(0, 10);
-  const [payForm, setPayForm] = useState({ student: '', amount: '', date: todayStr, method: 'CASH', notes: '' });
+  const [payForm, setPayForm] = useState({ student: '', course_class: '', amount: '', date: todayStr, method: 'CASH', notes: '' });
   const [debtorQuickPay, setDebtorQuickPay] = useState<Student | null>(null);
   const [expForm, setExpForm] = useState({ title: '', amount: '', date: todayStr, category: 'OTHER', notes: '' });
 
@@ -76,14 +99,66 @@ const Finance: React.FC = () => {
     finally { setLoading(false); }
   }, [perms.canViewFinancialStats, dateRange]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  const fetchChargeStatus = useCallback(async () => {
+    if (!perms.canViewFinancialStats) return;
+    try {
+      const r = await api.get('finance/charge-all-groups/');
+      setChargeStatus(r.data);
+    } catch(e) {
+      console.error(e);
+    }
+  }, [perms.canViewFinancialStats]);
+
+  const handleChargeAllGroups = async () => {
+    if (!chargeStatus || chargeStatus.already_charged) return;
+    const confirmMsg = `Diqqat! Ushbu oyda hali hisoblanmagan ${chargeStatus.uncharged_classes_count} ta guruh (${chargeStatus.uncharged_classes_names.join(', ')}) uchun oylik to'lov hisobdan chiqariladi. Davom etamizmi?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setChargingAll(true);
+    try {
+      const r = await api.post('finance/charge-all-groups/');
+      showToast(`✅ ${r.data.classes_charged} ta guruh muvaffaqiyatli hisoblandi! Jami yozilgan summa: ${fmt(r.data.total_charged)} UZS`);
+      await Promise.all([fetchAll(), fetchChargeStatus()]);
+    } catch (e: any) {
+      showToast(`❌ Xatolik yuz berdi: ${e.response?.data?.error || 'Ulanish xatosi'}`);
+    } finally {
+      setChargingAll(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAll();
+    fetchChargeStatus();
+  }, [fetchAll, fetchChargeStatus]);
+
+  const fetchSalaries = useCallback(async (month: string) => {
+    setSalaryLoading(true);
+    try { const r = await api.get(`finance/teacher-salaries/?month=${month}`); setSalaryData(r.data); }
+    catch(e) { console.error(e); } finally { setSalaryLoading(false); }
+  }, []);
+
+  useEffect(() => { if (tab === 'salaries' && perms.canViewFinancialStats) fetchSalaries(salaryMonth); }, [tab, salaryMonth, fetchSalaries, perms.canViewFinancialStats]);
+
+  const handlePaySalary = async () => {
+    if (!selectedTeacher) return;
+    setPaying(true);
+    try {
+      await api.post('finance/pay-salary/', { teacher_id: selectedTeacher.id, base_amount: parseFloat(payBase)||0, bonus_amount: parseFloat(payBonus)||0, notes: payNotes, month: salaryMonth });
+      setShowSalaryModal(false);
+      fetchSalaries(salaryMonth);
+      fetchAll();
+      showToast(`✅ ${selectedTeacher.display_name} oylik to'landi. Xarajat avtomatik kiritildi.`);
+    } catch(e: any) { showToast(`❌ ${e.response?.data?.error || 'Xatolik yuz berdi.'}`); }
+    finally { setPaying(false); }
+  };
 
   // Debtors
   const debtors = useMemo(() => students.filter(s => s.balance < 0).sort((a, b) => a.balance - b.balance), [students]);
 
   const openQuickPay = (s: Student) => {
     setDebtorQuickPay(s);
-    setPayForm({ student: String(s.id), amount: String(Math.abs(s.balance)), date: todayStr, method: 'CASH', notes: '' });
+    const defaultClass = s.class_details && s.class_details.length > 0 ? String(s.class_details[0].id) : '';
+    setPayForm({ student: String(s.id), course_class: defaultClass, amount: String(Math.abs(s.balance)), date: todayStr, method: 'CASH', notes: '' });
     setTab('payments');
     setShowModal(true);
   };
@@ -92,7 +167,7 @@ const Finance: React.FC = () => {
     e.preventDefault();
     try {
       await api.post('finance/payments/', payForm);
-      setShowModal(false); setDebtorQuickPay(null); setPayForm({ student: '', amount: '', date: todayStr, method: 'CASH', notes: '' });
+      setShowModal(false); setDebtorQuickPay(null); setPayForm({ student: '', course_class: '', amount: '', date: todayStr, method: 'CASH', notes: '' });
       fetchAll();
     } catch (err) { console.error(err); }
   };
@@ -131,6 +206,7 @@ const Finance: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {toast && <div className={`fixed top-4 right-4 z-50 px-5 py-3 rounded-xl shadow-xl font-bold text-sm text-white ${toast.startsWith('❌') ? 'bg-red-600' : 'bg-gray-900 dark:bg-emerald-700'}`}>{toast}</div>}
       {/* Header & Controls */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -149,6 +225,21 @@ const Finance: React.FC = () => {
                 <option value="ALL">Barcha vaqt</option>
               </select>
             </div>
+          )}
+          {perms.canViewFinancialStats && chargeStatus && (
+            <button
+              onClick={handleChargeAllGroups}
+              disabled={chargingAll || chargeStatus.already_charged}
+              title={chargeStatus.already_charged ? "Shu oy uchun barcha guruhlar to'liq hisoblangan" : "Barcha guruhlarga oylik to'lov yozish"}
+              className={`inline-flex items-center justify-center px-4 py-2 text-sm font-bold rounded-xl shadow-sm transition-all duration-300 flex-1 md:flex-none ${
+                chargeStatus.already_charged
+                  ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-gray-600 border border-gray-200 dark:border-slate-700 cursor-not-allowed'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:scale-105 active:scale-95'
+              }`}
+            >
+              <Zap className={`h-4 w-4 mr-2 ${chargeStatus.already_charged ? 'text-gray-400 dark:text-gray-600' : 'text-yellow-400 fill-yellow-400'}`} />
+              {chargingAll ? 'Yuklanmoqda...' : chargeStatus.already_charged ? 'Guruhlar hisoblangan' : `Hisobdan chiqarish (${chargeStatus.uncharged_classes_count})`}
+            </button>
           )}
           <button onClick={() => setShowModal(true)} className="inline-flex items-center justify-center px-4 py-2 text-sm font-bold rounded-xl text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-colors flex-1 md:flex-none">
             <Plus className="h-4 w-4 mr-2" />{tab === 'expenses' ? 'Xarajat kiritish' : 'To\'lov qabul qilish'}
@@ -261,11 +352,11 @@ const Finance: React.FC = () => {
       <div className="border-b-2 border-gray-100 dark:border-slate-800">
         <nav className="-mb-0.5 flex gap-8">
           {([
-            ...(perms.canViewFinancialStats ? [['payments', '💰 To\'lovlar'], ['expenses', '📋 Xarajatlar']] : []),
+            ...(perms.canViewFinancialStats ? [['payments', '💰 To\'lovlar'], ['expenses', '📋 Xarajatlar'], ['salaries', '💼 Oyliklar']] : []),
             ['debtors', '⚠️ Qarzdorlar'],
           ] as const).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t as any)}
-              className={`py-3.5 text-sm font-bold border-b-2 transition-colors ${tab === t ? (t === 'debtors' ? 'border-red-500 text-red-700 dark:text-red-500' : 'border-emerald-600 text-emerald-700 dark:text-emerald-500') : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
+              className={`py-3.5 text-sm font-bold border-b-2 transition-colors ${tab === t ? (t === 'debtors' ? 'border-red-500 text-red-700 dark:text-red-500' : t === 'salaries' ? 'border-violet-600 text-violet-700 dark:text-violet-400' : 'border-emerald-600 text-emerald-700 dark:text-emerald-500') : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>
               {label}{t === 'debtors' && debtors.length > 0 && <span className="ml-2 bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-400 text-[10px] font-black px-2 py-0.5 rounded-full">{debtors.length}</span>}
             </button>
           ))}
@@ -287,9 +378,21 @@ const Finance: React.FC = () => {
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Usul</th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-slate-800/60">
-                    {payments.map(p => (
+                    {[...payments].sort((a, b) => {
+                      const dateA = new Date(a.date).getTime();
+                      const dateB = new Date(b.date).getTime();
+                      if (dateB !== dateA) return dateB - dateA;
+                      return b.id - a.id;
+                    }).map(p => (
                       <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
-                        <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">{p.student_name}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">
+                          <div>{p.student_name}</div>
+                          {p.course_class_name && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/40 px-2 py-0.5 rounded-md mt-1 transition-colors">
+                              📚 {p.course_class_name}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-6 py-4 text-sm font-black text-green-700 dark:text-green-500">+{fmt(parseFloat(p.amount))}</td>
                         <td className="px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">{p.date}</td>
                         <td className="px-6 py-4"><span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-slate-700 shadow-sm">{METHOD_LABELS[p.method] || p.method}</span></td>
@@ -313,7 +416,12 @@ const Finance: React.FC = () => {
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Kategoriya</th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-slate-800/60">
-                    {expenses.map(ex => (
+                    {[...expenses].sort((a, b) => {
+                      const dateA = new Date(a.date).getTime();
+                      const dateB = new Date(b.date).getTime();
+                      if (dateB !== dateA) return dateB - dateA;
+                      return b.id - a.id;
+                    }).map(ex => (
                       <tr key={ex.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
                         <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">{ex.title}</td>
                         <td className="px-6 py-4 text-sm font-black text-red-700 dark:text-red-500">-{fmt(parseFloat(ex.amount))}</td>
@@ -369,7 +477,147 @@ const Finance: React.FC = () => {
               )}
             </div>
           )}
+          {/* Salaries */}
+          {tab === 'salaries' && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-bold text-gray-600 dark:text-gray-400">Oy:</label>
+                <input type="month" value={salaryMonth} onChange={e => setSalaryMonth(e.target.value)}
+                  className="px-3 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-bold focus:ring-2 focus:ring-violet-500 transition-colors" />
+              </div>
+              {salaryLoading ? <div className="p-12 text-center text-gray-400 font-bold">Yuklanmoqda...</div> :
+              !salaryData || salaryData.teachers.length === 0 ? (
+                <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800">
+                  <GraduationCap className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-500 dark:text-gray-400 font-bold">Faol o'qituvchilar topilmadi.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {salaryData.teachers.map(t => {
+                    const isExpanded = expandedTeacher === t.id;
+                    const total = (parseFloat(String(t.calculated_salary)) || 0);
+                    return (
+                      <div key={t.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
+                        <div className="flex items-center gap-4 p-5">
+                          <div className="h-11 w-11 rounded-full bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center text-violet-700 dark:text-violet-400 font-black text-lg shrink-0">{t.display_name[0]?.toUpperCase()}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-gray-900 dark:text-white">{t.display_name}</p>
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                              <span className="text-xs text-gray-500 dark:text-gray-400">{t.groups.length} ta guruh · {t.salary_share}% ulush</span>
+                              {(() => {
+                                const calculated = parseFloat(String(t.calculated_salary)) || 0;
+                                const paid = parseFloat(String(t.already_paid)) || 0;
+                                const remaining = calculated - paid;
+                                if (calculated > 0) {
+                                  if (paid === 0) {
+                                    return <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40">⏳ To'lanmagan</span>;
+                                  } else if (remaining > 0) {
+                                    return <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800/40 animate-pulse">⚠️ Qisman to'langan (Yana {fmt(remaining)} UZS to'lanishi kerak)</span>;
+                                  } else {
+                                    return <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">✅ To'liq to'langan</span>;
+                                  }
+                                }
+                                return null;
+                              })()}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">Yig'ilgan</p>
+                            <p className="text-lg font-black text-gray-900 dark:text-white">{fmt(t.total_income_from_groups)}</p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-violet-500 mb-0.5">Hisoblangan</p>
+                            <p className="text-lg font-black text-violet-700 dark:text-violet-400">{fmt(t.calculated_salary)}</p>
+                          </div>
+                          <div className="text-right shrink-0 pr-2">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 mb-0.5">To'langan</p>
+                            <p className="text-lg font-black text-emerald-700 dark:text-emerald-400">{fmt(t.already_paid || 0)}</p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button onClick={() => setExpandedTeacher(isExpanded ? null : t.id)} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800">
+                              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </button>
+                            <button onClick={() => { setSelectedTeacher(t); setPayBase(total > 0 ? String(Math.round(total)) : ''); setPayBonus(''); setPayNotes(''); setShowSalaryModal(true); }}
+                              className="px-4 py-2 text-sm font-bold text-white bg-violet-600 hover:bg-violet-700 rounded-xl shadow-sm transition-colors">
+                              To'lash
+                            </button>
+                          </div>
+                        </div>
+                        {isExpanded && t.groups.length > 0 && (
+                          <div className="border-t border-gray-100 dark:border-slate-800 px-5 py-4">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Guruhlar (shu oyda)</p>
+                            <div className="space-y-2">
+                              {t.groups.map(g => (
+                                <div key={g.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-3.5 border-b border-gray-100 dark:border-slate-800/50 last:border-0">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-gray-900 dark:text-white truncate">{g.name}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 font-semibold mt-0.5">
+                                      {g.student_count} ta faol o'quvchi · {fmt(g.monthly_fee)} UZS/oy
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-6 shrink-0">
+                                    <div className="text-right">
+                                      <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-0.5">Jami Yozilgan (Billed)</p>
+                                      <p className="text-sm font-bold text-gray-700 dark:text-gray-300">{fmt(g.month_fees_charged)} UZS</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-[10px] font-bold text-green-500 uppercase tracking-wider mb-0.5">Yig'ilgan To'lov (Collected)</p>
+                                      <p className="text-sm font-black text-green-600 dark:text-green-400">{fmt(g.month_payments_received)} UZS</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </>
+      )}
+
+      {/* Pay Salary Modal */}
+      {showSalaryModal && selectedTeacher && (
+        <div className="fixed inset-0 bg-gray-950/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-200 dark:border-slate-800">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Oylik to'lash</h3>
+              <button onClick={() => setShowSalaryModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 bg-gray-100 dark:bg-slate-800 p-1.5 rounded-xl transition-colors"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="mb-5 p-4 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800/40 rounded-xl">
+              <p className="text-sm font-bold text-violet-800 dark:text-violet-300">{selectedTeacher.display_name}</p>
+              <p className="text-xs text-violet-600 dark:text-violet-400 mt-0.5">{salaryMonth} · Hisoblangan: {fmt(selectedTeacher.calculated_salary)} UZS</p>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">Asosiy miqdor (UZS)</label>
+                <input type="number" min="0" value={payBase} onChange={e => setPayBase(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-bold focus:ring-2 focus:ring-violet-500 transition-all" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">Bonus (ixtiyoriy)</label>
+                <input type="number" min="0" value={payBonus} onChange={e => setPayBonus(e.target.value)} placeholder="0" className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-bold focus:ring-2 focus:ring-violet-500 transition-all" />
+              </div>
+              {(parseFloat(payBonus) > 0) && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 rounded-xl">
+                  <p className="text-sm font-black text-emerald-700 dark:text-emerald-400">Jami: {fmt((parseFloat(payBase)||0)+(parseFloat(payBonus)||0))} UZS</p>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">Izoh (ixtiyoriy)</label>
+                <input type="text" value={payNotes} onChange={e => setPayNotes(e.target.value)} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-bold focus:ring-2 focus:ring-violet-500 transition-all" />
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500">⚡ Oylik to'langanda xarajat avtomatik kiritiladi (kategoriya: Oylik)</p>
+            </div>
+            <div className="flex justify-end gap-3 pt-5">
+              <button type="button" onClick={() => setShowSalaryModal(false)} className="px-5 py-2.5 border-2 border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">Bekor qilish</button>
+              <button onClick={handlePaySalary} disabled={paying} className="px-5 py-2.5 text-sm font-bold text-white bg-violet-600 hover:bg-violet-700 rounded-xl shadow-sm transition-colors disabled:opacity-50">{paying ? 'Saqlanmoqda...' : 'To\'lash'}</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Add Modal */}
@@ -384,11 +632,33 @@ const Finance: React.FC = () => {
               <form onSubmit={handlePaySubmit} className="space-y-4">
                 {!debtorQuickPay && (
                   <div><label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">O'quvchi</label>
-                    <select required value={payForm.student} onChange={e => setPayForm({...payForm, student: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all">
+                    <select required value={payForm.student} onChange={e => {
+                      const sid = e.target.value;
+                      const sObj = students.find(s => String(s.id) === String(sid));
+                      const defaultC = sObj?.class_details && sObj.class_details.length > 0 ? String(sObj.class_details[0].id) : '';
+                      setPayForm({...payForm, student: sid, course_class: defaultC});
+                    }} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all">
                       <option value="">— Tanlang —</option>{students.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
                     </select>
                   </div>
                 )}
+
+                {(() => {
+                  const sId = debtorQuickPay?.id || payForm.student;
+                  const selectedStudentObj = students.find(s => String(s.id) === String(sId));
+                  if (!selectedStudentObj) return null;
+                  return (
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">Guruh (To'lov qilinayotgan guruh)</label>
+                      <select value={payForm.course_class} onChange={e => setPayForm({...payForm, course_class: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all">
+                        <option value="">— Umumiy to'lov (Hech qaysi guruhga bog'lanmagan) —</option>
+                        {selectedStudentObj.class_details?.map(c => (
+                          <option key={c.id} value={c.id}>{c.name} ({fmt(c.monthly_fee)} UZS)</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                })()}
                 <div className="grid grid-cols-2 gap-4">
                   <div><label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">Miqdor</label><input type="number" min="0" required value={payForm.amount} onChange={e => setPayForm({...payForm, amount: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" /></div>
                   <div><label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">Usul</label>

@@ -189,12 +189,7 @@ const ClassDetail: React.FC = () => {
             </span>
           )}
         </div>
-        {!meta.is_archived && perms.canChargeStudents && parseFloat(meta.monthly_fee) > 0 && (
-          <button onClick={() => { setShowCharge(true); setChargeResult(null); setDiscounts({}); }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold shadow-sm transition-colors">
-            <Zap className="h-4 w-4" /> To'lov
-          </button>
-        )}
+
       </div>
 
       {/* Tabs */}

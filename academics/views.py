@@ -29,7 +29,7 @@ class CourseClassViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        
+
         # Only filter out archived classes on the list view
         if self.action == 'list':
             show_archived = self.request.query_params.get('archived', 'false').lower() == 'true'
@@ -38,10 +38,17 @@ class CourseClassViewSet(viewsets.ModelViewSet):
             else:
                 qs = qs.filter(is_archived=False)
 
-        # Teachers can only see their own active classes by default, but can see all active in the Schedule
+        # Teachers can only see their own active classes by default
         if self.request.user.role == 'TEACHER' and self.request.query_params.get('all') != 'true':
             qs = qs.filter(teacher=self.request.user)
+
+        # Filter by teacher ID (used by TeacherDetail page)
+        teacher_id = self.request.query_params.get('teacher')
+        if teacher_id:
+            qs = qs.filter(teacher_id=teacher_id)
+
         return qs
+
 
     @action(detail=True, methods=['get'], url_path='detail')
     def class_detail(self, request, pk=None):
@@ -186,25 +193,14 @@ class CourseClassViewSet(viewsets.ModelViewSet):
                     MonthlyChargeEntry.objects.create(charge=charge, student=student, amount=amount)
                     total_charged += amount
 
+                # Teacher salary is now handled via the manual salary dashboard.
+                # We still store the estimated payout on the charge record for reference,
+                # but we do NOT automatically credit the teacher's balance here.
                 teacher_payout = 0.0
                 if course_class.teacher:
-                    # Check for absolute payout override
-                    override = request.data.get('teacher_payout_override')
-                    if override is not None:
-                        try:
-                            teacher_payout = float(override)
-                        except (TypeError, ValueError):
-                            pass
-                    else:
-                        # Fallback to percentage calculation
-                        share = float(course_class.teacher.salary_share or 0)
-                        if share > 0:
-                            teacher_payout = base_fee * share / 100 * len(active_students)
-
-                    if teacher_payout > 0:
-                        course_class.teacher.balance = course_class.teacher.balance + Decimal(str(teacher_payout))
-                    
-                    course_class.teacher.save(update_fields=['balance'])
+                    share = float(course_class.teacher.salary_share or 0)
+                    if share > 0:
+                        teacher_payout = total_charged * share / 100
                     charge.teacher_payout = teacher_payout
                     charge.save(update_fields=['teacher_payout'])
 

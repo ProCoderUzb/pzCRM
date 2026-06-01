@@ -3,6 +3,7 @@ from .models import Payment, Expense, MonthlyCharge, MonthlyChargeEntry
 
 class PaymentSerializer(serializers.ModelSerializer):
     student_name = serializers.CharField(source='student.full_name', read_only=True)
+    course_class_name = serializers.CharField(source='course_class.name', read_only=True)
 
     class Meta:
         model = Payment
