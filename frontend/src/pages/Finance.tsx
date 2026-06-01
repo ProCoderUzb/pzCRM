@@ -90,10 +90,13 @@ const Finance: React.FC = () => {
           api.get(`finance/summary/${qs}`)
         );
         const [s, p, e, sum] = await Promise.all(reqs);
-        setStudents(s.data); setPayments(p.data); setExpenses(e.data); setSummary(sum.data);
+        setStudents(Array.isArray(s.data) ? s.data : s.data?.results || []);
+        setPayments(Array.isArray(p.data) ? p.data : p.data?.results || []);
+        setExpenses(Array.isArray(e.data) ? e.data : e.data?.results || []);
+        setSummary(sum.data);
       } else {
         const [s] = await Promise.all(reqs);
-        setStudents(s.data);
+        setStudents(Array.isArray(s.data) ? s.data : s.data?.results || []);
       }
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
@@ -153,7 +156,7 @@ const Finance: React.FC = () => {
   };
 
   // Debtors
-  const debtors = useMemo(() => students.filter(s => s.balance < 0).sort((a, b) => a.balance - b.balance), [students]);
+  const debtors = useMemo(() => (Array.isArray(students) ? students : []).filter(s => s.balance < 0).sort((a, b) => a.balance - b.balance), [students]);
 
   const openQuickPay = (s: Student) => {
     setDebtorQuickPay(s);

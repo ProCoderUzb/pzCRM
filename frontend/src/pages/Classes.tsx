@@ -60,11 +60,11 @@ const Classes: React.FC = () => {
       if (perms.canManageStaff) reqs.push(api.get('users/'));
       if (perms.canEditStudents) reqs.push(api.get('students/?is_active=true'));
       const [cls, rm, sub, usr, stu] = await Promise.all(reqs);
-      setClasses(cls.data);
-      setRooms(rm.data);
-      setSubjects(sub.data);
-      if (perms.canManageStaff && usr) setTeachers(usr.data.filter((u: any) => u.role !== 'DEV'));
-      if (perms.canEditStudents && stu) setAllStudents(stu.data);
+      setClasses(Array.isArray(cls.data) ? cls.data : cls.data?.results || []);
+      setRooms(Array.isArray(rm.data) ? rm.data : rm.data?.results || []);
+      setSubjects(Array.isArray(sub.data) ? sub.data : sub.data?.results || []);
+      if (perms.canManageStaff && usr) setTeachers((Array.isArray(usr.data) ? usr.data : usr.data?.results || []).filter((u: any) => u.role !== 'DEV'));
+      if (perms.canEditStudents && stu) setAllStudents(Array.isArray(stu.data) ? stu.data : stu.data?.results || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [perms.canManageStaff, perms.canEditStudents, activeTab]);
