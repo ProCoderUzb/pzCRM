@@ -12,10 +12,10 @@ venv/
 
 # Node / Vite
 node_modules/
-dist/
+# dist/
 dist-ssr/
 *.local
-frontend/dist/
+# frontend/dist/
 frontend/node_modules/
 
 # VS Code
