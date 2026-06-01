@@ -185,7 +185,7 @@ const Students: React.FC = () => {
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
                         <div className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${activeTab === 'active' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400' : 'bg-gray-100 dark:bg-slate-800 text-gray-500'}`}>
-                          {s.full_name[0]?.toUpperCase()}
+                          {s.full_name?.[0]?.toUpperCase() || '?'}
                         </div>
                         <Link to={`/students/${s.id}`} className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline">{s.full_name}</Link>
                       </div>

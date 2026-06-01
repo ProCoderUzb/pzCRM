@@ -89,11 +89,11 @@ const Layout: React.FC = () => {
           <div className={`mx-3 mb-3 p-3 rounded-xl bg-white/5 border border-white/10 shrink-0 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="h-9 w-9 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-inner">
-                {currentUser.display_name[0]?.toUpperCase()}
+                {currentUser?.display_name?.[0]?.toUpperCase() || '?'}
               </div>
               {!isCollapsed && (
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white truncate">{currentUser.display_name}</p>
+                  <p className="text-sm font-semibold text-white truncate">{currentUser?.display_name || ''}</p>
                   <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-md font-bold ${ROLE_COLORS[currentUser.role] || 'bg-gray-100 text-gray-600'}`}>
                     {currentUser.role}
                   </span>
@@ -122,11 +122,11 @@ const Layout: React.FC = () => {
             {currentUser && (
               <>
                 <div className="h-8 w-8 rounded-full bg-gradient-to-br from-green-400 to-teal-600 flex items-center justify-center text-white font-bold text-xs">
-                  {currentUser.display_name[0]?.toUpperCase()}
+                  {currentUser?.display_name?.[0]?.toUpperCase() || '?'}
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 leading-tight">{currentUser.display_name}</p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">{currentUser.role_display}</p>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-100 leading-tight">{currentUser?.display_name || ''}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">{currentUser?.role_display || ''}</p>
                 </div>
               </>
             )}

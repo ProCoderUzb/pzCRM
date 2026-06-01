@@ -104,7 +104,7 @@ const Dashboard: React.FC = () => {
             {debtStudents.map(s => (
               <div key={s.id} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 dark:hover:bg-slate-800/50 transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className="h-7 w-7 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-700 dark:text-red-400 font-bold text-xs shrink-0">{s.full_name[0]?.toUpperCase()}</div>
+                  <div className="h-7 w-7 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-red-700 dark:text-red-400 font-bold text-xs shrink-0">{s.full_name?.[0]?.toUpperCase() || '?'}</div>
                   <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{s.full_name}</span>
                 </div>
                 <span className="text-sm font-bold text-red-600 dark:text-red-500">{fmt(s.balance)}</span>

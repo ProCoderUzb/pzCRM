@@ -182,7 +182,7 @@ const Attendance: React.FC = () => {
                         <td className="px-5 py-3 whitespace-nowrap sticky left-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50 dark:group-hover:bg-slate-800/50 z-10 border-r border-gray-100 dark:border-slate-800 transition-colors">
                           <div className="flex items-center gap-3">
                             <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-700 dark:text-blue-400 font-bold text-xs shrink-0 shadow-sm">
-                              {s.full_name[0]?.toUpperCase()}
+                              {s.full_name?.[0]?.toUpperCase() || '?'}
                             </div>
                             <div>
                               <p className="text-sm font-bold text-gray-900 dark:text-white">{s.full_name}</p>

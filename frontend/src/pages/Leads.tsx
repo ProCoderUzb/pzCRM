@@ -100,7 +100,7 @@ const Leads: React.FC = () => {
                 <tr key={lead.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 rounded-xl bg-green-100 dark:bg-green-900/40 border border-green-200 dark:border-green-800/50 flex items-center justify-center text-green-700 dark:text-green-400 font-black text-sm shadow-sm">{lead.full_name[0]?.toUpperCase()}</div>
+                      <div className="h-10 w-10 rounded-xl bg-green-100 dark:bg-green-900/40 border border-green-200 dark:border-green-800/50 flex items-center justify-center text-green-700 dark:text-green-400 font-black text-sm shadow-sm">{lead.full_name?.[0]?.toUpperCase() || '?'}</div>
                       <span className="text-sm font-bold text-gray-900 dark:text-white">{lead.full_name}</span>
                     </div>
                   </td>

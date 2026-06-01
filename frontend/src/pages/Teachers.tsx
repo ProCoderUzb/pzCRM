@@ -107,7 +107,7 @@ const Teachers: React.FC = () => {
           <div key={m.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm p-5 hover:shadow-md transition-all">
             <div className="flex items-start gap-4 mb-4">
               <div className="h-12 w-12 rounded-full bg-teal-100 dark:bg-teal-900/40 flex items-center justify-center text-teal-700 dark:text-teal-400 font-black text-xl shrink-0 shadow-sm">
-                {(m.first_name || m.username)[0]?.toUpperCase()}
+                {(m.first_name || m.username || '?')[0]?.toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-gray-900 dark:text-white truncate">{m.display_name}</h3>

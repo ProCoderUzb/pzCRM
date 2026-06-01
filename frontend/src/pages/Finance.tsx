@@ -458,7 +458,7 @@ const Finance: React.FC = () => {
                           <tr key={s.id} className="hover:bg-red-50/50 dark:hover:bg-red-900/20 transition-colors">
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-4">
-                                <div className="h-10 w-10 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center text-red-700 dark:text-red-400 font-black text-sm shadow-sm">{s.full_name[0]?.toUpperCase()}</div>
+                                <div className="h-10 w-10 rounded-xl bg-red-100 dark:bg-red-900/40 flex items-center justify-center text-red-700 dark:text-red-400 font-black text-sm shadow-sm">{s.full_name?.[0]?.toUpperCase() || '?'}</div>
                                 <span className="text-sm font-bold text-gray-900 dark:text-white">{s.full_name}</span>
                               </div>
                             </td>
@@ -499,7 +499,7 @@ const Finance: React.FC = () => {
                     return (
                       <div key={t.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
                         <div className="flex items-center gap-4 p-5">
-                          <div className="h-11 w-11 rounded-full bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center text-violet-700 dark:text-violet-400 font-black text-lg shrink-0">{t.display_name[0]?.toUpperCase()}</div>
+                          <div className="h-11 w-11 rounded-full bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center text-violet-700 dark:text-violet-400 font-black text-lg shrink-0">{t.display_name?.[0]?.toUpperCase() || '?'}</div>
                           <div className="flex-1 min-w-0">
                             <p className="font-bold text-gray-900 dark:text-white">{t.display_name}</p>
                             <div className="flex flex-wrap items-center gap-2 mt-1">
