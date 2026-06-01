@@ -47,7 +47,8 @@ const Attendance: React.FC = () => {
 
   useEffect(() => {
     api.get('classes/').then(r => {
-      let cls: CourseClass[] = r.data;
+      const rawData = Array.isArray(r.data) ? r.data : r.data?.results || [];
+      let cls: CourseClass[] = rawData;
       if (isTeacher && currentUser?.id) cls = cls.filter(c => c.teacher === currentUser.id);
       setClasses(cls);
       if (cls.length === 1) setSelClass(String(cls[0].id));
@@ -60,13 +61,14 @@ const Attendance: React.FC = () => {
       api.get(`classes/${selClass}/detail/`),
       api.get(`attendance/?course_class=${selClass}&date=${date}`),
     ]).then(([detRes, attRes]) => {
-      const students: Stu[] = detRes.data.students;
+      const students: Stu[] = Array.isArray(detRes.data.students) ? detRes.data.students : [];
       setEnrolled(students);
       setAttSummary(detRes.data.attendance_summary || []);
       setAttDates(detRes.data.attendance_dates || []);
       const recs: Record<number, any> = {};
       students.forEach(s => {
-        const ex = attRes.data.find((a: any) => a.student === s.id);
+        const attList = Array.isArray(attRes.data) ? attRes.data : attRes.data?.results || [];
+        const ex = attList.find((a: any) => a.student === s.id);
         recs[s.id] = ex ?? { student: s.id, course_class: +selClass, date, status: 'PRESENT' };
       });
       setStuRecs(recs);
