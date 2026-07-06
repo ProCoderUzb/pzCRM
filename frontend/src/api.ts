@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://crm1.educationpro.uz/api/';
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://pz1.educationpro.uz/api/';
 
 const api = axios.create({
   baseURL: BASE_URL,
