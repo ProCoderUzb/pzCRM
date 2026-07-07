@@ -24,6 +24,22 @@ class StudentViewSet(viewsets.ModelViewSet):
     filterset_fields = ['is_active']
     search_fields = ['full_name', 'phone_number', 'parent_name']
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # Balance filter
+        balance_filter = self.request.query_params.get('balance_filter')
+        if balance_filter == 'debt':
+            qs = qs.filter(balance__lt=0)
+        elif balance_filter == 'zero':
+            qs = qs.filter(balance=0)
+        elif balance_filter == 'plus':
+            qs = qs.filter(balance__gt=0)
+        # Group/class filter
+        class_id = self.request.query_params.get('class_id')
+        if class_id:
+            qs = qs.filter(classes__id=class_id)
+        return qs
+
     def perform_update(self, serializer):
         from rest_framework.exceptions import PermissionDenied
         old_balance = serializer.instance.balance

@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../api';
 import { usePermissions } from '../context/AuthContext';
 import {
   ArrowLeft, Users, BookOpen, Clock, DoorOpen, DollarSign,
-  ClipboardCheck, Zap, UserMinus, UserPlus, X, Save
+  ClipboardCheck, Zap, UserMinus, UserPlus, X, Save, Edit2, Archive, Trash2
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -12,8 +12,10 @@ interface ClassMeta {
   id: number; name: string; subject_name: string; teacher_name: string;
   room_name: string; days: string; start_time: string; end_time: string;
   capacity: number; student_count: number; monthly_fee: string; is_archived: boolean;
+  teacher: number | null;
+  room: number | null;
 }
-interface EnrolledStudent { id: number; full_name: string; balance: number; is_active: boolean; }
+interface EnrolledStudent { id: number; full_name: string; phone_number: string; parent_phone: string; balance: number; is_active: boolean; }
 interface AttSummaryRow {
   student_id: number; student: string;
   present: number; absent: number; total: number; rate: number;
@@ -60,6 +62,9 @@ const TABS = [
   { key: 'attendance', Icon: ClipboardCheck, label: 'Davomat' },
 ] as const;
 
+const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'] as const;
+const DAYS_MZ: Record<string, string> = { MON: 'Dushanba', TUE: 'Seshanba', WED: 'Chorshanba', THU: 'Payshanba', FRI: 'Juma', SAT: 'Shanba', SUN: 'Yakshanba' };
+
 // ── Main Component ────────────────────────────────────────────────────────────
 const ClassDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -69,17 +74,28 @@ const ClassDetail: React.FC = () => {
   const [data, setData] = useState<DetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'info' | 'students' | 'attendance'>('info');
+  const [toast, setToast] = useState('');
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3500); };
 
   // Enroll modal
   const [showEnroll, setShowEnroll] = useState(false);
   const [allStudents, setAllStudents] = useState<{ id: number; full_name: string }[]>([]);
   const [enrollSearch, setEnrollSearch] = useState('');
+  const [enrolling, setEnrolling] = useState(false);
 
   // Charge modal
   const [showCharge, setShowCharge] = useState(false);
   const [discounts, setDiscounts] = useState<Record<number, string>>({});
   const [chargeResult, setChargeResult] = useState<{ msg: string; ok: boolean } | null>(null);
   const [charging, setCharging] = useState(false);
+
+  // Edit group modal
+  const [showEdit, setShowEdit] = useState(false);
+  const [editForm, setEditForm] = useState<any>({});
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [teachers, setTeachers] = useState<any[]>([]);
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
 
   // Attendance taking
   const [attDate, setAttDate] = useState(new Date().toISOString().slice(0, 10));
@@ -124,13 +140,72 @@ const ClassDetail: React.FC = () => {
   };
 
   const handleEnroll = async (sid: number) => {
-    await api.post(`classes/${id}/enroll/`, { student_id: sid });
-    setShowEnroll(false);
-    loadDetail();
+    if (enrolling) return;
+    setEnrolling(true);
+    try {
+      const res = await api.post(`classes/${id}/enroll/`, { student_id: sid });
+      const charged = res.data?.charged_amount || 0;
+      setShowEnroll(false);
+      loadDetail();
+      if (charged > 0) showToast(`✅ O'quvchi qo'shildi. Oylik to'lov ${fmt(charged)} UZS hisobdan chiqarildi.`);
+    } catch (e: any) { showToast(e.response?.data?.error || 'Xatolik'); }
+    finally { setEnrolling(false); }
   };
   const handleUnenroll = async (sid: number) => {
     await api.post(`classes/${id}/unenroll/`, { student_id: sid });
     loadDetail();
+  };
+
+  const toggleDay = (day: string) => {
+    setSelectedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);
+  };
+
+  const openEdit = async () => {
+    if (!data) return;
+    const { meta } = data;
+    setEditForm({
+      name: meta.name,
+      monthly_fee: meta.monthly_fee,
+      teacher: meta.teacher ? String(meta.teacher) : '',
+      room: meta.room ? String(meta.room) : '',
+      start_time: meta.start_time ? meta.start_time.slice(0, 5) : '',
+      end_time: meta.end_time ? meta.end_time.slice(0, 5) : '',
+    });
+    setSelectedDays(meta.days ? meta.days.split(',').map(d => d.trim()).filter(Boolean) : []);
+    setShowEdit(true);
+
+    try {
+      const [tRes, rRes] = await Promise.all([
+        api.get('users/'),
+        api.get('rooms/'),
+      ]);
+      setTeachers((tRes.data || []).filter((u: any) => u.role !== 'DEV'));
+      setRooms(rRes.data || []);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editSubmitting) return;
+    setEditSubmitting(true);
+    const payload = {
+      ...editForm,
+      days: selectedDays.join(','),
+      teacher: editForm.teacher || null,
+      room: editForm.room || null,
+      start_time: editForm.start_time || null,
+      end_time: editForm.end_time || null,
+    };
+    try { await api.patch(`classes/${id}/`, payload); setShowEdit(false); loadDetail(); }
+    catch (e: any) { showToast(e.response?.data?.error || 'Xatolik'); }
+    finally { setEditSubmitting(false); }
+  };
+
+  const handleToggleArchive = async () => {
+    if (!data) return;
+    const endpoint = data.meta.is_archived ? `classes/${id}/restore/` : `classes/${id}/archive/`;
+    try { await api.post(endpoint); navigate('/classes'); }
+    catch (e: any) { showToast(e.response?.data?.error || 'Xatolik'); }
   };
 
   const openEnroll = async () => {
@@ -172,24 +247,27 @@ const ClassDetail: React.FC = () => {
 
   return (
     <div className="space-y-5 max-w-4xl mx-auto">
+      {toast && <div className="fixed top-4 right-4 z-50 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-xl font-bold text-sm">{toast}</div>}
       {/* Top bar */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button onClick={() => navigate('/classes')}
           className="p-2 rounded-xl border border-gray-200 dark:border-slate-800 hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 dark:text-gray-400 transition-colors">
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <div className="flex-1 min-w-0 flex items-center gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white truncate">{meta.name}</h1>
-            <p className="text-sm text-purple-600 dark:text-purple-400 font-bold">{meta.subject_name}</p>
-          </div>
-          {meta.is_archived && (
-            <span className="px-2.5 py-1 uppercase tracking-widest text-[10px] font-black rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-500 border border-amber-200 dark:border-amber-800/50">
-              Arxivlangan
-            </span>
-          )}
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white truncate">{meta.name}</h1>
+          <p className="text-sm text-purple-600 dark:text-purple-400 font-bold">{meta.subject_name}</p>
         </div>
-
+        {meta.is_archived && (
+          <span className="px-2.5 py-1 uppercase tracking-widest text-[10px] font-black rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-500 border border-amber-200 dark:border-amber-800/50">Arxivlangan</span>
+        )}
+        {perms.canEditClasses && (
+          <div className="flex items-center gap-2 ml-auto">
+            <button onClick={openEdit} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/40 hover:bg-blue-100 transition-colors"><Edit2 className="h-3.5 w-3.5" />Tahrirlash</button>
+            <button onClick={() => setShowCharge(true)} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/40 hover:bg-orange-100 transition-colors"><Zap className="h-3.5 w-3.5" />To'lov yozish</button>
+            <button onClick={handleToggleArchive} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 hover:bg-amber-100 transition-colors">{meta.is_archived ? <><Trash2 className="h-3.5 w-3.5" />Tiklash</> : <><Archive className="h-3.5 w-3.5" />Arxivlash</>}</button>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -294,7 +372,7 @@ const ClassDetail: React.FC = () => {
                           <div className="h-9 w-9 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center text-purple-700 dark:text-purple-400 font-bold text-sm shrink-0">
                             {s.full_name?.[0]?.toUpperCase() || '?'}
                           </div>
-                          <span className="text-sm font-bold text-gray-900 dark:text-white">{s.full_name}</span>
+                          <Link to={`/students/${s.id}`} className="text-sm font-bold text-purple-600 dark:text-purple-400 hover:underline">{s.full_name}</Link>
                         </div>
                       </td>
                       <td className="px-5 py-3 text-center">
@@ -383,11 +461,7 @@ const ClassDetail: React.FC = () => {
                               </div>
                               <div>
                                 <p className="text-sm font-bold text-gray-900 dark:text-white">{s.full_name}</p>
-                                {summary && (
-                                  <p className="text-[10px] font-bold tracking-wide mt-0.5">
-                                    <span className="text-green-600 dark:text-green-500">{summary.present} Bor</span> <span className="text-gray-300 dark:text-slate-600">/</span> <span className="text-red-600 dark:text-red-500">{summary.absent} Yo'q</span>
-                                  </p>
-                                )}
+                                {s.phone_number && <span className="text-xs font-bold text-gray-600 dark:text-gray-400 block mt-0.5">📞 {s.phone_number}</span>}
                               </div>
                             </div>
                           </td>
@@ -490,6 +564,67 @@ const ClassDetail: React.FC = () => {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {showEdit && (
+        <div className="fixed inset-0 bg-gray-950/60 flex items-center justify-center p-4 z-50 overflow-y-auto backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-lg w-full p-6 my-4 border border-gray-200 dark:border-slate-800">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Guruhni tahrirlash</h3>
+              <button onClick={() => setShowEdit(false)} className="text-gray-400 hover:text-gray-600 bg-gray-100 dark:bg-slate-800 p-1.5 rounded-xl"><X className="h-5 w-5" /></button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">Guruh nomi</label>
+                <input type="text" required value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-500 transition-all" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">Oylik to'lov</label>
+                  <input type="number" min="0" value={editForm.monthly_fee || ''} onChange={e => setEditForm({...editForm, monthly_fee: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-500 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">O'qituvchi</label>
+                  <select value={editForm.teacher || ''} onChange={e => setEditForm({...editForm, teacher: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-500 transition-all">
+                    <option value="">— Yo'q —</option>
+                    {teachers.map(t => <option key={t.id} value={String(t.id)}>{t.display_name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">Xona</label>
+                  <select value={editForm.room || ''} onChange={e => setEditForm({...editForm, room: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-500 transition-all">
+                    <option value="">— Yo'q —</option>
+                    {rooms.map(r => <option key={r.id} value={String(r.id)}>{r.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">Dars kunlari</label>
+                <div className="flex flex-wrap gap-2">
+                  {DAYS.map(d => (
+                    <button key={d} type="button" onClick={() => toggleDay(d)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${selectedDays.includes(d) ? 'bg-purple-600 text-white border-purple-600 shadow-sm' : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-700'}`}>{DAYS_MZ[d]}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">Boshlanish</label>
+                  <input type="time" value={editForm.start_time || ''} onChange={e => setEditForm({...editForm, start_time: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-500 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">Tugash</label>
+                  <input type="time" value={editForm.end_time || ''} onChange={e => setEditForm({...editForm, end_time: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-500 transition-all" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowEdit(false)} className="px-5 py-2.5 border-2 border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300">Bekor qilish</button>
+                <button type="submit" disabled={editSubmitting} className="px-5 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl shadow-sm transition-colors disabled:opacity-60 flex items-center gap-2">
+                  {editSubmitting && <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}Saqlash
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

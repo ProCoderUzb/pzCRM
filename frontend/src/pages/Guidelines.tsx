@@ -46,13 +46,23 @@ const Guidelines: React.FC = () => {
       role: 'CEO'
     },
     {
+      question: "Guruhning dars kunlari va vaqtlarini qanday tahrirlash mumkin?",
+      answer: "Guruh dars kunlari, vaqtlari, o'qituvchisi va xonasini tahrirlash uchun 'Guruhlar' bo'limiga kirib, kerakli guruhning 'Batafsil' tugmasini bosing va sahifa yuqorisidagi 'Tahrirlash' tugmasini bosing. Ochilgan modal orqali dars kunlari (Dushanba-Yakshanba), boshlanish/tugash vaqtlari va mas'ul o'qituvchi hamda dars xonasini oson o'zgartirish mumkin.",
+      role: 'ADMIN'
+    },
+    {
+      question: "Nima uchun o'quvchilar telefon raqamlari bosiladigan havola (link) emas?",
+      answer: "Davomat olish yoki hisobotlarni ko'rishda o'quvchi telefon raqamiga tasodifan bosib yuborib, kompyuter yoki telefondagi qo'ng'iroq qilish ilovalari ochilib ketishining oldini olish maqsadida telefon raqamlari kliklanmaydigan, faqat nusxa ko'chirish mumkin bo'lgan oddiy matn ko'rinishida chiqarilgan.",
+      role: 'ADMIN'
+    },
+    {
       question: "O'quvchini qanday arxivlash va o'chirish mumkin?",
       answer: "Faoliyati tugagan o'quvchini profilidan yoki o'quvchilar ro'yxatidan 'Arxivlash' tugmasi orqali arxivga o'tkazish mumkin. Arxivlangan o'quvchilar 'O'quvchilar' bo'limidagi 'Arxiv' tabida turadi. Arxivdagi o'quvchini qayta tiklash (Restore) yoki butunlay o'chirish (Delete) mumkin. Butunlay o'chirish huquqi faqat CEO va DEV rollariga berilgan.",
       role: 'ADMIN'
     },
     {
       question: "Davomatni qanday to'g'ri yuritish kerak?",
-      answer: "O'qituvchilar o'z guruhlarining dars kunlarida 'Davomat' bo'limiga kirib, kerakli guruh va sanani tanlashadi. Har bir o'quvchi uchun: 'Keldi' (yashil), 'Kelmadi' (qizil) yoki 'Kechikdi' (sariq) holatlarini belgilab saqlashadi. Davomat real vaqtda ota-onalar va ma'muriyatga ma'lumot berish uchun xizmat qiladi.",
+      answer: "O'qituvchilar o'z guruhlarining dars kunlarida 'Davomat' bo'limiga kirib, kerakli guruh va sanani tanlashadi. Har bir o'quvchi uchun: 'Keldi' (yashil), 'Kelmadi' (qizil) yoki 'Kechikdi' (sariq) holatlarini belgilab saqlashadi. Davomat real vaqtda ota-onalar va ma'muriyatga ma'lumot berish uchun xizmat qilami.",
       role: 'TEACHER'
     },
     {

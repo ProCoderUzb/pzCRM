@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
-import { Save, Users, User } from 'lucide-react';
+import { Save, Users, User, Info } from 'lucide-react';
 
-interface CourseClass { id: number; name: string; teacher: number | null; }
-interface Stu { id: number; full_name: string; }
+interface CourseClass { id: number; name: string; teacher: number | null; teacher_name?: string; room_name?: string; }
+interface Stu { id: number; full_name: string; phone_number?: string; }
 interface Staff { id: number; username: string; first_name: string; last_name: string; role: string; display_name: string; }
 
 const STATUS_CELL: Record<string, string> = {
@@ -44,6 +44,7 @@ const Attendance: React.FC = () => {
   const [attDates, setAttDates] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
 
   useEffect(() => {
     api.get('classes/').then(r => {
@@ -93,7 +94,12 @@ const Attendance: React.FC = () => {
     <div className="space-y-4 max-w-4xl mx-auto">
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Davomat</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            Davomat
+            <button onClick={() => setShowInfo(!showInfo)} className="p-1 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors" title="Ma'lumot">
+              <Info className="h-5 w-5" />
+            </button>
+          </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Tanlangan sana uchun davomatni belgilang</p>
         </div>
         <div className="flex items-center gap-3">
@@ -107,6 +113,17 @@ const Attendance: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Info Banner */}
+      {showInfo && (
+        <div className="flex items-start gap-3 p-4 bg-blue-50/50 dark:bg-slate-800/40 border border-blue-100 dark:border-slate-800/80 rounded-2xl text-blue-700 dark:text-blue-300 transition-colors animate-fade-in">
+          <Info className="h-5 w-5 shrink-0 mt-0.5 text-blue-500" />
+          <div className="text-xs font-semibold leading-relaxed flex-1">
+            <strong>Davomat tizimi:</strong> Tanlangan sana bo'yicha darsda qatnashgan yoki qatnashmagan o'quvchilarni belgilab, o'ng tomondagi "Saqlash" tugmasini bosing. Davomat o'quvchilar va ota-onalarga real vaqtda hisobot berish uchun xizmat qiladi.
+          </div>
+          <button onClick={() => setShowInfo(false)} className="text-blue-400 hover:text-blue-600 dark:text-blue-500 dark:hover:text-blue-400 font-bold text-xs">Yopish</button>
+        </div>
+      )}
 
       <div className="space-y-4">
         {classes.length === 0 ? (
@@ -133,7 +150,7 @@ const Attendance: React.FC = () => {
         )}
 
         {Object.keys(stuRecs).length > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/50">
               Keldi: {Object.values(stuRecs).filter(r => r.status === 'PRESENT').length}
             </span>
@@ -143,6 +160,16 @@ const Attendance: React.FC = () => {
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-slate-700">
               Jami: {Object.keys(stuRecs).length}
             </span>
+            {(() => {
+              const sel = classes.find(c => String(c.id) === selClass);
+              if (!sel) return null;
+              return (
+                <span className="text-xs font-bold text-gray-500 dark:text-gray-400 sm:ml-auto">
+                  {sel.teacher_name && `👨‍🏫 O'qituvchi: ${sel.teacher_name}`}
+                  {sel.room_name && ` · 🚪 Xona: ${sel.room_name}`}
+                </span>
+              );
+            })()}
           </div>
         )}
 
@@ -188,6 +215,9 @@ const Attendance: React.FC = () => {
                             </div>
                             <div>
                               <p className="text-sm font-bold text-gray-900 dark:text-white">{s.full_name}</p>
+                              {s.phone_number && (
+                                <span className="text-xs font-bold text-gray-600 dark:text-gray-400 block mt-0.5">{s.phone_number}</span>
+                              )}
                               {summary && (
                                 <p className="text-[10px] font-bold tracking-wide mt-0.5">
                                   <span className="text-green-600 dark:text-green-500">{summary.present} Bor</span> <span className="text-gray-300 dark:text-slate-600">/</span> <span className="text-red-600 dark:text-red-500">{summary.absent} Yo'q</span>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api';
-import { Plus, Users, Phone, Search, Edit2, X, Archive, RotateCcw, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Users, Phone, Search, Edit2, X, Archive, RotateCcw, Trash2, AlertTriangle, Filter, Info } from 'lucide-react';
 import { usePermissions } from '../context/AuthContext';
 
 interface Student {
@@ -9,6 +9,7 @@ interface Student {
   parent_name: string; parent_phone: string;
   is_active: boolean; notes: string; balance: number;
 }
+interface CourseClass { id: number; name: string; }
 interface ConfirmDialog { title: string; message: string; confirmLabel: string; danger?: boolean; onConfirm: () => void; }
 
 const emptyForm = { full_name: '', phone_number: '', parent_name: '', parent_phone: '', is_active: true, notes: '', balance: 0 };
@@ -16,15 +17,20 @@ const emptyForm = { full_name: '', phone_number: '', parent_name: '', parent_pho
 const Students: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'active' | 'archive'>('active');
   const [students, setStudents] = useState<Student[]>([]);
+  const [classes, setClasses] = useState<CourseClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [balanceFilter, setBalanceFilter] = useState('');
+  const [classFilter, setClassFilter] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editStudent, setEditStudent] = useState<Student | null>(null);
   const [formData, setFormData] = useState(emptyForm);
+  const [submitting, setSubmitting] = useState(false);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [confirm, setConfirm] = useState<ConfirmDialog | null>(null);
   const { isCEO, isAdmin } = usePermissions();
   const [toast, setToast] = useState('');
+  const [showInfo, setShowInfo] = useState(false);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000); };
 
@@ -33,12 +39,20 @@ const Students: React.FC = () => {
     const params = new URLSearchParams();
     if (search) params.set('search', search);
     params.set('is_active', activeTab === 'active' ? 'true' : 'false');
+    if (balanceFilter) params.set('balance_filter', balanceFilter);
+    if (classFilter) params.set('class_id', classFilter);
     try { const r = await api.get(`students/?${params}`); setStudents(r.data); }
     catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchStudents(); }, [search, activeTab]);
+  const fetchClasses = async () => {
+    try { const r = await api.get('classes/'); setClasses(Array.isArray(r.data) ? r.data : []); }
+    catch (e) { console.error(e); }
+  };
+
+  useEffect(() => { fetchStudents(); }, [search, activeTab, balanceFilter, classFilter]);
+  useEffect(() => { fetchClasses(); }, []);
 
   const openAdd = () => { setEditStudent(null); setFormData(emptyForm); setShowModal(true); };
   const openEdit = (s: Student) => {
@@ -49,11 +63,14 @@ const Students: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     try {
       if (editStudent) await api.patch(`students/${editStudent.id}/`, formData);
       else await api.post('students/', formData);
       setShowModal(false); fetchStudents();
     } catch (e) { console.error(e); }
+    finally { setSubmitting(false); }
   };
 
   const doArchive = async (s: Student) => {
@@ -120,7 +137,12 @@ const Students: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">O'quvchilar</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            O'quvchilar
+            <button onClick={() => setShowInfo(!showInfo)} className="p-1 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors" title="Ma'lumot">
+              <Info className="h-5 w-5" />
+            </button>
+          </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {activeTab === 'active' ? `${students.length} faol o'quvchi` : `${students.length} arxivdagi o'quvchi`}
           </p>
@@ -132,6 +154,17 @@ const Students: React.FC = () => {
         )}
       </div>
 
+      {/* Info Banner */}
+      {showInfo && (
+        <div className="flex items-start gap-3 p-4 bg-blue-50/50 dark:bg-slate-800/40 border border-blue-100 dark:border-slate-800/80 rounded-2xl text-blue-700 dark:text-blue-300 transition-colors animate-fade-in">
+          <Info className="h-5 w-5 shrink-0 mt-0.5 text-blue-500" />
+          <div className="text-xs font-semibold leading-relaxed flex-1">
+            <strong>O'quvchilar boshqaruvi:</strong> O'qishni to'xtatgan o'quvchini butunlay o'chirmasdan, arxivlash tavsiya etiladi. Bu uning o'tgan oylardagi to'lov va davomat tarixini saqlab qoladi va keyinchalik oylik hisoblashda chalkashliklar kelib chiqishining oldini oladi.
+          </div>
+          <button onClick={() => setShowInfo(false)} className="text-blue-400 hover:text-blue-600 dark:text-blue-500 dark:hover:text-blue-400 font-bold text-xs">Yopish</button>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200 dark:border-slate-800">
         <button onClick={() => setActiveTab('active')} className={`px-5 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'active' ? 'border-blue-600 text-blue-700 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}>
@@ -142,12 +175,43 @@ const Students: React.FC = () => {
         </button>
       </div>
 
-      {/* Search */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm">
+      {/* Search + Filters */}
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-gray-200 dark:border-slate-800 shadow-sm space-y-3">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
           <input type="text" placeholder="Ism yoki telefon bo'yicha qidirish..." value={search} onChange={e => setSearch(e.target.value)}
             className="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 transition-colors" />
+        </div>
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex items-center gap-1.5">
+            <Filter className="h-4 w-4 text-gray-400" />
+            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Balans:</span>
+          </div>
+          {[
+            { val: '', label: 'Barchasi' },
+            { val: 'debt', label: '⛔ Qarzdor' },
+            { val: 'zero', label: '⚪ Nol' },
+            { val: 'plus', label: '✅ Musbat' },
+          ].map(opt => (
+            <button key={opt.val} onClick={() => setBalanceFilter(opt.val)}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all ${balanceFilter === opt.val ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-slate-700 hover:border-blue-400'}`}>
+              {opt.label}
+            </button>
+          ))}
+          <div className="ml-2 flex items-center gap-1.5">
+            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Guruh:</span>
+            <select value={classFilter} onChange={e => setClassFilter(e.target.value)}
+              className="pl-3 pr-8 py-1.5 text-xs font-bold rounded-lg border-2 border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-blue-500 transition-colors appearance-none">
+              <option value="">Barchasi</option>
+              {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          {(balanceFilter || classFilter || search) && (
+            <button onClick={() => { setBalanceFilter(''); setClassFilter(''); setSearch(''); }}
+              className="ml-auto text-xs font-bold text-red-500 hover:text-red-700 flex items-center gap-1">
+              <X className="h-3 w-3" />Tozalash
+            </button>
+          )}
         </div>
       </div>
 
@@ -254,7 +318,10 @@ const Students: React.FC = () => {
               )}
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowModal(false)} className="px-5 py-2.5 border-2 border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 transition-colors">Bekor qilish</button>
-                <button type="submit" className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-colors">{editStudent ? 'Saqlash' : "Qo'shish"}</button>
+                <button type="submit" disabled={submitting} className="px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-colors disabled:opacity-60 flex items-center gap-2">
+                  {submitting && <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {editStudent ? 'Saqlash' : "Qo'shish"}
+                </button>
               </div>
             </form>
           </div>

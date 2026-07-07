@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
-import { Users, UserPlus, BookOpen, DollarSign, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
+import { Users, UserPlus, BookOpen, DollarSign, TrendingUp, TrendingDown, AlertCircle, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '../context/AuthContext';
 
@@ -38,6 +38,7 @@ const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [debtStudents, setDebtStudents] = useState<DebtStudent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showInfo, setShowInfo] = useState(false);
   const perms = usePermissions();
   const navigate = useNavigate();
 
@@ -61,10 +62,28 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Bosh sahifa</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">O'quv markazingiz statistikasi.</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            Bosh sahifa
+            <button onClick={() => setShowInfo(!showInfo)} className="p-1 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors" title="Ma'lumot">
+              <Info className="h-5 w-5" />
+            </button>
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">O'quv markazingiz statistikasi.</p>
+        </div>
       </div>
+
+      {/* Info Banner */}
+      {showInfo && (
+        <div className="flex items-start gap-3 p-4 bg-blue-50/50 dark:bg-slate-800/40 border border-blue-100 dark:border-slate-800/80 rounded-2xl text-blue-700 dark:text-blue-300 transition-colors animate-fade-in">
+          <Info className="h-5 w-5 shrink-0 mt-0.5 text-blue-500" />
+          <div className="text-xs font-semibold leading-relaxed flex-1">
+            <strong>PROZONE CRM Tizimiga xush kelibsiz!</strong> Markazning asosiy moliyaviy va o'quv ko'rsatkichlarini shu yerdan kuzatib borishingiz mumkin. Chap menyu orqali o'quvchilar, guruhlar, davomat, jadval va xodimlar ro'yxatiga o'tishingiz, shuningdek tizim bilan ishlash bo'yicha to'liq <strong>Yo'riqnoma</strong> bilan tanishishingiz mumkin.
+          </div>
+          <button onClick={() => setShowInfo(false)} className="text-blue-400 hover:text-blue-600 dark:text-blue-500 dark:hover:text-blue-400 font-bold text-xs">Yopish</button>
+        </div>
+      )}
 
       {/* KPI Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

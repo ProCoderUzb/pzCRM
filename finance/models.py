@@ -16,11 +16,27 @@ class Payment(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
-        # Automatically credit the student's balance on new payment
         if not self.pk:
+            # New payment: credit student balance
             self.student.balance += self.amount
             self.student.save(update_fields=['balance'])
+        else:
+            # Editing existing: reverse old amount, apply new amount
+            try:
+                old = Payment.objects.get(pk=self.pk)
+                delta = self.amount - old.amount
+                if delta != 0:
+                    self.student.balance += delta
+                    self.student.save(update_fields=['balance'])
+            except Payment.DoesNotExist:
+                pass
         super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        # Reverse the balance credit when deleting
+        self.student.balance -= self.amount
+        self.student.save(update_fields=['balance'])
+        super().delete(*args, **kwargs)
 
     def __str__(self):
         return f"{self.student} paid {self.amount} on {self.date}"

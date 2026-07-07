@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     PaymentViewSet, ExpenseViewSet, MonthlyChargeViewSet,
     FinanceSummaryView, TeacherSalaryView, PaySalaryView,
-    ChargeAllGroupsView,
+    ChargeAllGroupsView, TeacherDetailSalaryView,
 )
 
 router = DefaultRouter()
@@ -17,4 +17,5 @@ urlpatterns = [
     path('teacher-salaries/', TeacherSalaryView.as_view(), name='teacher_salaries'),
     path('pay-salary/', PaySalaryView.as_view(), name='pay_salary'),
     path('charge-all-groups/', ChargeAllGroupsView.as_view(), name='charge_all_groups'),
+    path('teacher-salary-detail/', TeacherDetailSalaryView.as_view(), name='teacher_salary_detail'),
 ]

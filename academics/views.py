@@ -66,7 +66,7 @@ class CourseClassViewSet(viewsets.ModelViewSet):
         students_qs = course_class.students.all()
         students = [
             {'id': s.id, 'full_name': s.full_name, 'phone_number': s.phone_number,
-             'balance': float(s.balance), 'is_active': s.is_active}
+             'parent_phone': s.parent_phone, 'balance': float(s.balance), 'is_active': s.is_active}
             for s in students_qs
         ]
 
@@ -124,6 +124,10 @@ class CourseClassViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='enroll')
     def enroll_student(self, request, pk=None):
+        from finance.models import MonthlyCharge, MonthlyChargeEntry
+        from django.utils import timezone
+        from decimal import Decimal
+
         course_class = self.get_object()
         student_id = request.data.get('student_id')
         if not student_id:
@@ -132,8 +136,31 @@ class CourseClassViewSet(viewsets.ModelViewSet):
             student = Student.objects.get(pk=student_id)
         except Student.DoesNotExist:
             return Response({'error': 'Student not found.'}, status=status.HTTP_404_NOT_FOUND)
+
         course_class.students.add(student)
-        return Response({'ok': True})
+
+        # Auto-charge monthly fee on enrollment
+        charged_amount = Decimal('0')
+        if course_class.monthly_fee and course_class.monthly_fee > 0:
+            with transaction.atomic():
+                charge = MonthlyCharge.objects.create(
+                    course_class=course_class,
+                    charged_by=request.user,
+                    fee_amount=course_class.monthly_fee,
+                    date=timezone.now().date(),
+                )
+                student.balance -= course_class.monthly_fee
+                student.save(update_fields=['balance'])
+                MonthlyChargeEntry.objects.create(
+                    charge=charge, student=student, amount=course_class.monthly_fee
+                )
+                charged_amount = course_class.monthly_fee
+
+        return Response({
+            'ok': True,
+            'charged_amount': float(charged_amount),
+            'new_balance': float(student.balance),
+        })
 
     @action(detail=True, methods=['post'], url_path='unenroll')
     def unenroll_student(self, request, pk=None):

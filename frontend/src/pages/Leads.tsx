@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
-import { Plus, UserPlus, Phone, Calendar, Search, Edit2, X } from 'lucide-react';
+import { Plus, UserPlus, Phone, Calendar, Search, Edit2, X, Info } from 'lucide-react';
 
 interface Lead { id: number; full_name: string; phone_number: string; status: string; notes: string; created_at: string; }
 
@@ -24,6 +24,7 @@ const Leads: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editLead, setEditLead] = useState<Lead | null>(null);
   const [formData, setFormData] = useState(emptyForm);
+  const [showInfo, setShowInfo] = useState(false);
 
   const fetchLeads = async () => {
     try {
@@ -58,7 +59,12 @@ const Leads: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Mijozlar (Leads)</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            Mijozlar (Leads)
+            <button onClick={() => setShowInfo(!showInfo)} className="p-1 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors" title="Ma'lumot">
+              <Info className="h-5 w-5" />
+            </button>
+          </h1>
           <div className="flex flex-wrap gap-2 mt-2">
             {STATUS_OPTIONS.map(s => (
               <span key={s.value} className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 ${s.color} rounded-md`}>{leads.filter(l => l.status === s.value).length} {s.label}</span>
@@ -69,6 +75,17 @@ const Leads: React.FC = () => {
           <Plus className="h-4 w-4 mr-2" /> Mijoz qo'shish
         </button>
       </div>
+
+      {/* Info Banner */}
+      {showInfo && (
+        <div className="flex items-start gap-3 p-4 bg-blue-50/50 dark:bg-slate-800/40 border border-blue-100 dark:border-slate-800/80 rounded-2xl text-blue-700 dark:text-blue-300 transition-colors animate-fade-in">
+          <Info className="h-5 w-5 shrink-0 mt-0.5 text-blue-500" />
+          <div className="text-xs font-semibold leading-relaxed flex-1">
+            <strong>Mijozlar (Leads) tizimi:</strong> Yangi qiziquvchilar arizalari ro'yxatga olinadigan sahifa. Arizani faol o'quvchiga aylantirish uchun, uni ma'lum bir guruhga a'zo qilib qo'shishingiz lozim.
+          </div>
+          <button onClick={() => setShowInfo(false)} className="text-blue-400 hover:text-blue-600 dark:text-blue-500 dark:hover:text-blue-400 font-bold text-xs">Yopish</button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-sm transition-colors">

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import api from '../api';
 import { usePermissions } from '../context/AuthContext';
-import { Plus, TrendingUp, TrendingDown, DollarSign, AlertCircle, X, Calendar, Wallet, GraduationCap, ChevronDown, ChevronUp, Zap } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, DollarSign, AlertCircle, X, Calendar, Wallet, GraduationCap, ChevronDown, ChevronUp, Zap, Info } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 // Types
@@ -41,6 +41,7 @@ const getDates = (range: string) => {
 const Finance: React.FC = () => {
   const perms = usePermissions();
   const [tab, setTab] = useState<'payments' | 'expenses' | 'debtors' | 'salaries'>(perms.canViewFinancialStats ? 'payments' : 'debtors');
+  const [showInfo, setShowInfo] = useState(false);
 
   // Salary state
   const [salaryMonth, setSalaryMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; });
@@ -73,6 +74,18 @@ const Finance: React.FC = () => {
   const [payForm, setPayForm] = useState({ student: '', course_class: '', amount: '', date: todayStr, method: 'CASH', notes: '' });
   const [debtorQuickPay, setDebtorQuickPay] = useState<Student | null>(null);
   const [expForm, setExpForm] = useState({ title: '', amount: '', date: todayStr, category: 'OTHER', notes: '' });
+  const [submitting, setSubmitting] = useState(false);
+
+  // Search/filter states
+  const [paySearch, setPaySearch] = useState('');
+  const [payMethodFilter, setPayMethodFilter] = useState('');
+  const [expSearch, setExpSearch] = useState('');
+  const [expCategoryFilter, setExpCategoryFilter] = useState('');
+  const [debtSearch, setDebtSearch] = useState('');
+
+  // Edit state
+  const [editPayment, setEditPayment] = useState<Payment | null>(null);
+  const [editExpense, setEditExpense] = useState<Expense | null>(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -158,6 +171,20 @@ const Finance: React.FC = () => {
   // Debtors
   const debtors = useMemo(() => (Array.isArray(students) ? students : []).filter(s => s.balance < 0).sort((a, b) => a.balance - b.balance), [students]);
 
+  const filteredPayments = useMemo(() => payments.filter(p => {
+    if (paySearch && !p.student_name?.toLowerCase().includes(paySearch.toLowerCase())) return false;
+    if (payMethodFilter && p.method !== payMethodFilter) return false;
+    return true;
+  }), [payments, paySearch, payMethodFilter]);
+
+  const filteredExpenses = useMemo(() => expenses.filter(ex => {
+    if (expSearch && !ex.title.toLowerCase().includes(expSearch.toLowerCase())) return false;
+    if (expCategoryFilter && ex.category !== expCategoryFilter) return false;
+    return true;
+  }), [expenses, expSearch, expCategoryFilter]);
+
+  const filteredDebtors = useMemo(() => debtors.filter(s => !debtSearch || s.full_name.toLowerCase().includes(debtSearch.toLowerCase())), [debtors, debtSearch]);
+
   const openQuickPay = (s: Student) => {
     setDebtorQuickPay(s);
     const defaultClass = s.class_details && s.class_details.length > 0 ? String(s.class_details[0].id) : '';
@@ -168,20 +195,50 @@ const Finance: React.FC = () => {
 
   const handlePaySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     try {
-      await api.post('finance/payments/', payForm);
-      setShowModal(false); setDebtorQuickPay(null); setPayForm({ student: '', course_class: '', amount: '', date: todayStr, method: 'CASH', notes: '' });
+      if (editPayment) {
+        await api.patch(`finance/payments/${editPayment.id}/`, { amount: payForm.amount, date: payForm.date, method: payForm.method, notes: payForm.notes, course_class: payForm.course_class || null });
+        setEditPayment(null);
+      } else {
+        await api.post('finance/payments/', payForm);
+      }
+      setShowModal(false); setDebtorQuickPay(null);
+      setPayForm({ student: '', course_class: '', amount: '', date: todayStr, method: 'CASH', notes: '' });
       fetchAll();
     } catch (err) { console.error(err); }
+    finally { setSubmitting(false); }
   };
 
   const handleExpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     try {
-      await api.post('finance/expenses/', expForm);
-      setShowModal(false); setExpForm({ title: '', amount: '', date: todayStr, category: 'OTHER', notes: '' });
+      if (editExpense) {
+        await api.patch(`finance/expenses/${editExpense.id}/`, expForm);
+        setEditExpense(null);
+      } else {
+        await api.post('finance/expenses/', expForm);
+      }
+      setShowModal(false);
+      setExpForm({ title: '', amount: '', date: todayStr, category: 'OTHER', notes: '' });
       fetchAll();
     } catch (err) { console.error(err); }
+    finally { setSubmitting(false); }
+  };
+
+  const openEditPayment = (p: Payment) => {
+    setEditPayment(p); setEditExpense(null);
+    setPayForm({ student: String(p.student), course_class: p.course_class ? String(p.course_class) : '', amount: p.amount, date: p.date, method: p.method, notes: p.notes || '' });
+    setShowModal(true); setTab('payments');
+  };
+
+  const openEditExpense = (ex: Expense) => {
+    setEditExpense(ex); setEditPayment(null);
+    setExpForm({ title: ex.title, amount: ex.amount, date: ex.date, category: ex.category, notes: (ex as any).notes || '' });
+    setShowModal(true); setTab('expenses');
   };
 
   // Process data for composite chart
@@ -213,7 +270,12 @@ const Finance: React.FC = () => {
       {/* Header & Controls */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Moliya</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            Moliya
+            <button onClick={() => setShowInfo(!showInfo)} className="p-1 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors" title="Ma'lumot">
+              <Info className="h-5 w-5" />
+            </button>
+          </h1>
           {!perms.canViewFinancialStats && <p className="text-sm font-bold text-amber-600 dark:text-amber-500 mt-1">👁 Faqat qarzdorlarni ko'rish va to'lov qabul qilish mumkin.</p>}
         </div>
         
@@ -351,6 +413,28 @@ const Finance: React.FC = () => {
         </div>
       )}
 
+      {/* Info Banner */}
+      {showInfo && (
+        <div className="flex items-start gap-3 p-4 bg-blue-50/50 dark:bg-slate-800/40 border border-blue-100 dark:border-slate-800/80 rounded-2xl text-blue-700 dark:text-blue-300 transition-colors animate-fade-in">
+          <Info className="h-5 w-5 shrink-0 mt-0.5 text-blue-500" />
+          <div className="text-xs font-semibold leading-relaxed flex-1">
+            {tab === 'payments' && (
+              <span><strong>To'lovlar boshqaruvi:</strong> Talabalar tomonidan amalga oshirilgan to'lovlar tarixi. Yangi to'lov kiritganda uni aniq bir guruhga bog'lash esdan chiqmasin — bu o'qituvchi oyligini to'g'ri hisoblash uchun zarur.</span>
+            )}
+            {tab === 'expenses' && (
+              <span><strong>Xarajatlar boshqaruvi:</strong> Markazning barcha chiqimlari va ijara, kommunal, marketing kabi xarajatlarini ro'yxatga olish bo'limi. O'qituvchilar oyliklari to'langanda oylik chiqimi avtomatik tarzda yaratiladi.</span>
+            )}
+            {tab === 'debtors' && (
+              <span><strong>Qarzdorlar ro'yxati:</strong> Balansi manfiy bo'lgan o'quvchilar ro'yxati. Bu yerda qarzdor o'quvchi to'g'risidagi ma'lumotlarni ko'rish va "Tezkor to'lov" tugmasi orqali tezda to'lov qabul qilish imkoni mavjud.</span>
+            )}
+            {tab === 'salaries' && (
+              <span><strong>Oyliklar hisoboti:</strong> O'qituvchilarning oylik ish haqi hisoboti. Tizim o'qituvchi oyligini uning guruhlaridagi yig'ilgan to'lovlar ulushidan kelib chiqib avtomatik hisoblaydi. To'lov tasdiqlangach, xarajatlarga yoziladi.</span>
+            )}
+          </div>
+          <button onClick={() => setShowInfo(false)} className="text-blue-400 hover:text-blue-600 dark:text-blue-500 dark:hover:text-blue-400 font-bold text-xs">Yopish</button>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="border-b-2 border-gray-100 dark:border-slate-800">
         <nav className="-mb-0.5 flex gap-8">
@@ -371,84 +455,112 @@ const Finance: React.FC = () => {
         <>
           {/* Payments */}
           {tab === 'payments' && (
-            <div className="bg-white dark:bg-slate-900 shadow-sm rounded-2xl border border-gray-200 dark:border-slate-800 overflow-hidden transition-colors">
-              {payments.length === 0 ? <div className="p-16 text-center text-gray-400 dark:text-gray-500 font-bold">To'lovlar hali kiritilmagan.</div> : (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-3 items-center bg-white dark:bg-slate-900 p-3 rounded-xl border border-gray-200 dark:border-slate-800">
+                <div className="relative flex-1 min-w-[180px]">
+                  <input type="text" placeholder="O'quvchi nomi..." value={paySearch} onChange={e => setPaySearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 transition-colors" />
+                  <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                </div>
+                <select value={payMethodFilter} onChange={e => setPayMethodFilter(e.target.value)} className="px-3 py-2 text-sm font-bold border-2 border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500">
+                  <option value="">Barcha usullar</option>
+                  {METHODS.map(m => <option key={m} value={m}>{METHOD_LABELS[m]}</option>)}
+                </select>
+                <span className="text-xs font-bold text-gray-400">{filteredPayments.length} ta</span>
+              </div>
+              <div className="bg-white dark:bg-slate-900 shadow-sm rounded-2xl border border-gray-200 dark:border-slate-800 overflow-hidden transition-colors">
+              {filteredPayments.length === 0 ? <div className="p-16 text-center text-gray-400 dark:text-gray-500 font-bold">To'lovlar topilmadi.</div> : (
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800">
                   <thead className="bg-gray-50 dark:bg-slate-800/50"><tr>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">O'quvchi</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Miqdor</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sana</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Usul</th>
+                    <th className="px-6 py-4 w-12"></th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-slate-800/60">
-                    {[...payments].sort((a, b) => {
-                      const dateA = new Date(a.date).getTime();
-                      const dateB = new Date(b.date).getTime();
-                      if (dateB !== dateA) return dateB - dateA;
-                      return b.id - a.id;
-                    }).map(p => (
+                    {[...filteredPayments].sort((a, b) => { const da = new Date(a.date).getTime(), db = new Date(b.date).getTime(); return da !== db ? db - da : b.id - a.id; }).map(p => (
                       <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
                         <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">
                           <div>{p.student_name}</div>
-                          {p.course_class_name && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/40 px-2 py-0.5 rounded-md mt-1 transition-colors">
-                              📚 {p.course_class_name}
-                            </span>
-                          )}
+                          {p.course_class_name && <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/40 px-2 py-0.5 rounded-md mt-1">📚 {p.course_class_name}</span>}
                         </td>
                         <td className="px-6 py-4 text-sm font-black text-green-700 dark:text-green-500">+{fmt(parseFloat(p.amount))}</td>
                         <td className="px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">{p.date}</td>
-                        <td className="px-6 py-4"><span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-slate-700 shadow-sm">{METHOD_LABELS[p.method] || p.method}</span></td>
+                        <td className="px-6 py-4"><span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-slate-700">{METHOD_LABELS[p.method] || p.method}</span></td>
+                        <td className="px-6 py-4 text-right">
+                          <button onClick={() => openEditPayment(p)} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors" title="Tahrirlash"><svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               )}
+              </div>
             </div>
           )}
 
           {/* Expenses */}
           {tab === 'expenses' && (
-            <div className="bg-white dark:bg-slate-900 shadow-sm rounded-2xl border border-gray-200 dark:border-slate-800 overflow-hidden transition-colors">
-              {expenses.length === 0 ? <div className="p-16 text-center text-gray-400 dark:text-gray-500 font-bold">Xarajatlar hali kiritilmagan.</div> : (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-3 items-center bg-white dark:bg-slate-900 p-3 rounded-xl border border-gray-200 dark:border-slate-800">
+                <div className="relative flex-1 min-w-[180px]">
+                  <input type="text" placeholder="Sarlavha bo'yicha..." value={expSearch} onChange={e => setExpSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-gray-900 dark:text-white rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 transition-colors" />
+                  <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                </div>
+                <select value={expCategoryFilter} onChange={e => setExpCategoryFilter(e.target.value)} className="px-3 py-2 text-sm font-bold border-2 border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500">
+                  <option value="">Barcha kategoriyalar</option>
+                  {CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
+                </select>
+                <span className="text-xs font-bold text-gray-400">{filteredExpenses.length} ta</span>
+              </div>
+              <div className="bg-white dark:bg-slate-900 shadow-sm rounded-2xl border border-gray-200 dark:border-slate-800 overflow-hidden transition-colors">
+              {filteredExpenses.length === 0 ? <div className="p-16 text-center text-gray-400 dark:text-gray-500 font-bold">Xarajatlar topilmadi.</div> : (
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-800">
                   <thead className="bg-gray-50 dark:bg-slate-800/50"><tr>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sarlavha</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Miqdor</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sana</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Kategoriya</th>
+                    <th className="px-6 py-4 w-12"></th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-slate-800/60">
-                    {[...expenses].sort((a, b) => {
-                      const dateA = new Date(a.date).getTime();
-                      const dateB = new Date(b.date).getTime();
-                      if (dateB !== dateA) return dateB - dateA;
-                      return b.id - a.id;
-                    }).map(ex => (
+                    {[...filteredExpenses].sort((a, b) => { const da = new Date(a.date).getTime(), db = new Date(b.date).getTime(); return da !== db ? db - da : b.id - a.id; }).map(ex => (
                       <tr key={ex.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors">
                         <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">{ex.title}</td>
                         <td className="px-6 py-4 text-sm font-black text-red-700 dark:text-red-500">-{fmt(parseFloat(ex.amount))}</td>
                         <td className="px-6 py-4 text-sm font-medium text-gray-500 dark:text-gray-400">{ex.date}</td>
-                        <td className="px-6 py-4"><span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-slate-700 shadow-sm">{CATEGORY_LABELS[ex.category] || ex.category}</span></td>
+                        <td className="px-6 py-4"><span className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-slate-700">{CATEGORY_LABELS[ex.category] || ex.category}</span></td>
+                        <td className="px-6 py-4 text-right">
+                          <button onClick={() => openEditExpense(ex)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors" title="Tahrirlash"><svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               )}
+              </div>
             </div>
           )}
 
           {/* Debtors */}
           {tab === 'debtors' && (
             <div className="space-y-4">
-              {debtors.length === 0 ? (
+              {/* Debtor search */}
+              <div className="relative">
+                <input type="text" placeholder="O'quvchi nomini qidirish..." value={debtSearch} onChange={e => setDebtSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white rounded-xl text-sm font-medium focus:ring-2 focus:ring-red-500 transition-colors" />
+                <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              </div>
+              {filteredDebtors.length === 0 ? (
                 <div className="p-16 text-center bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 transition-colors">
                   <AlertCircle className="h-16 w-16 text-emerald-300 dark:text-emerald-800/50 mx-auto mb-4" />
                   <p className="text-gray-600 dark:text-gray-400 font-bold text-lg">Qarzdor o'quvchilar yo'q 🎉</p>
                 </div>
               ) : (
                 <>
-                  <p className="text-sm font-bold text-gray-500 dark:text-gray-400 px-1">{debtors.length} ta o'quvchida qarz bor. Qarzni yopish uchun to'lov qabul qiling.</p>
+                  <p className="text-sm font-bold text-gray-500 dark:text-gray-400 px-1">{filteredDebtors.length} ta o'quvchida qarz bor.</p>
                   <div className="bg-white dark:bg-slate-900 rounded-2xl border border-red-200 dark:border-red-900/30 shadow-sm overflow-hidden transition-colors">
                     <table className="min-w-full divide-y divide-gray-100 dark:divide-slate-800/60">
                       <thead className="bg-red-50 dark:bg-red-900/10"><tr>
@@ -457,7 +569,7 @@ const Finance: React.FC = () => {
                         <th className="px-6 py-4"></th>
                       </tr></thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-slate-800/60">
-                        {debtors.map(s => (
+                        {filteredDebtors.map(s => (
                           <tr key={s.id} className="hover:bg-red-50/50 dark:hover:bg-red-900/20 transition-colors">
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-4">
@@ -674,7 +786,10 @@ const Finance: React.FC = () => {
                 {debtorQuickPay && <p className="text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800/50 p-3 rounded-xl"><strong>To'liq miqdor avtomatik kiritildi.</strong> Qisman to'lov bo'lsa o'zgartirishingiz mumkin.</p>}
                 <div className="flex justify-end gap-3 pt-4">
                   <button type="button" onClick={() => { setShowModal(false); setDebtorQuickPay(null); }} className="px-5 py-2.5 border-2 border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">Bekor qilish</button>
-                  <button type="submit" className="px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-colors">To'lovni saqlash</button>
+                <button type="submit" disabled={submitting} className="px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-colors disabled:opacity-60 flex items-center gap-2">
+                  {submitting && <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {editPayment ? 'Yangilash' : "To'lovni saqlash"}
+                </button>
                 </div>
               </form>
             ) : (
@@ -691,7 +806,10 @@ const Finance: React.FC = () => {
                 <div><label className="block text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">Sana</label><input type="date" required value={expForm.date} onChange={e => setExpForm({...expForm, date: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all" /></div>
                 <div className="flex justify-end gap-3 pt-4">
                   <button type="button" onClick={() => setShowModal(false)} className="px-5 py-2.5 border-2 border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">Bekor qilish</button>
-                  <button type="submit" className="px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-colors">Xarajatni saqlash</button>
+                <button type="submit" disabled={submitting} className="px-5 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-colors disabled:opacity-60 flex items-center gap-2">
+                  {submitting && <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {editExpense ? 'Yangilash' : 'Xarajatni saqlash'}
+                </button>
                 </div>
               </form>
             )}

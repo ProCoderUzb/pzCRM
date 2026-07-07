@@ -431,3 +431,115 @@ class ChargeAllGroupsView(views.APIView):
             'total_charged': total_charged_amount,
         })
 
+
+class TeacherDetailSalaryView(views.APIView):
+    """
+    GET /api/finance/teacher-salary-detail/?teacher_id=X&month=YYYY-MM
+    Returns per-group and per-student salary breakdown for TeacherDetail page.
+    """
+    permission_classes = [IsCEOOrDev]
+
+    def get(self, request):
+        from users.models import User
+        from academics.models import CourseClass
+        from datetime import date
+        import calendar
+        from decimal import Decimal
+
+        teacher_id = request.query_params.get('teacher_id')
+        month_str = request.query_params.get('month', '')
+
+        if not teacher_id:
+            return Response({'error': 'teacher_id required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            teacher = User.objects.get(pk=teacher_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Teacher not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if month_str:
+            try:
+                year, month = int(month_str[:4]), int(month_str[5:7])
+            except (ValueError, IndexError):
+                return Response({'error': 'Invalid month format. Use YYYY-MM'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            today = date.today()
+            year, month = today.year, today.month
+
+        last_day = calendar.monthrange(year, month)[1]
+        start_date = date(year, month, 1)
+        end_date = date(year, month, last_day)
+
+        active_classes = teacher.classes.filter(is_archived=False)
+        groups_data = []
+        total_expected = Decimal('0')
+        total_received = Decimal('0')
+
+        for cls in active_classes:
+            students_in_class = cls.students.all()
+            student_rows = []
+
+            for student in students_in_class:
+                # Expected = charge entries this month for this student in this class
+                expected_entry = MonthlyChargeEntry.objects.filter(
+                    charge__course_class=cls,
+                    charge__date__gte=start_date,
+                    charge__date__lte=end_date,
+                    student=student,
+                ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+                # Received = payments from student linked to this class this month
+                received_entry = Payment.objects.filter(
+                    student=student,
+                    course_class=cls,
+                    date__gte=start_date,
+                    date__lte=end_date,
+                ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+                student_rows.append({
+                    'id': student.id,
+                    'full_name': student.full_name,
+                    'phone_number': student.phone_number,
+                    'expected': float(expected_entry),
+                    'received': float(received_entry),
+                    'remaining': float(expected_entry - received_entry),
+                })
+
+            group_expected = sum(Decimal(str(r['expected'])) for r in student_rows)
+            group_received = sum(Decimal(str(r['received'])) for r in student_rows)
+            total_expected += group_expected
+            total_received += group_received
+
+            groups_data.append({
+                'id': cls.id,
+                'name': cls.name,
+                'monthly_fee': float(cls.monthly_fee),
+                'student_count': len(student_rows),
+                'expected': float(group_expected),
+                'received': float(group_received),
+                'remaining': float(group_expected - group_received),
+                'students': student_rows,
+            })
+
+        salary_share = float(teacher.salary_share or 0)
+        expected_salary = float(total_expected) * salary_share / 100
+        received_salary = float(total_received) * salary_share / 100
+
+        expense_title = f"Oylik: {teacher.get_full_name() or teacher.username} ({year}-{month:02d})"
+        already_paid = Expense.objects.filter(
+            category='SALARY', title=expense_title
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        return Response({
+            'month': f'{year}-{month:02d}',
+            'teacher_id': teacher.id,
+            'display_name': teacher.get_full_name() or teacher.username,
+            'salary_share': salary_share,
+            'total_expected_charged': float(total_expected),
+            'total_received': float(total_received),
+            'total_remaining': float(total_expected - total_received),
+            'expected_salary': expected_salary,
+            'received_salary': received_salary,
+            'already_paid': float(already_paid),
+            'groups': groups_data,
+        })
